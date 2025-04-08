@@ -67,25 +67,32 @@ services:
     command:
       - lighthouse
       - beacon_node
+      - --network=mainnet
+      # Execution Layer
       - --execution-endpoint=http://reth:8551
       - --execution-jwt=/jwt-secret.txt
       - --enr-address=170.55.104.206
       - --enr-udp-port=9001
       - --enr-tcp-port=9001
+      # Pruning and State Caching
+      - --disable-deposit-contract-sync
+      - --prune-past-states  
+      - --prune-state-cache
+      - --prune-epochs=256
+      # HTTP API
       - --http
       - --http-address=0.0.0.0
       - --port=9001
       - --discovery-port=9001
+      # Metrics
       - --metrics
       - --metrics-address=0.0.0.0
       - --metrics-port=5053
+      # Checkpoint Sync
       - --checkpoint-sync-url=https://mainnet-checkpoint-sync.attestant.io
       - --target-peers=200
-      - --network=mainnet
       - --disable-packet-filter
-      - --prune-past-states  
-      - --prune-state-cache
-      - --prune-epochs=256
+
     depends_on:
       - reth
     networks:
