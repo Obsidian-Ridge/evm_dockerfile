@@ -1,0 +1,80 @@
+networks:
+  eth_network:
+    name: ethereum_network
+    driver: bridge
+
+services:
+  # Ethereum Execution Layer (Reth)
+  reth:
+    image: ghcr.io/paradigmxyz/reth
+    container_name: reth
+    restart: unless-stopped
+    ports:
+      - "8545:8545"         # HTTP
+      - "8546:8546"         # WebSocket
+      - "30303:30303"       # P2P TCP
+      - "30303:30303/udp"   # P2P UDP
+      - "8551:8551"         # Engine API
+    volumes:
+      - /mnt/eth/reth:/root/.reth
+      - /mnt/eth/jwt-secret.txt:/jwt-secret.txt:ro
+    command:
+      - node
+      - --chain=mainnet
+      - --data-dir=/root/.reth
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots,flashbots,miner,mev
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots,flashbots,miner,mev
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt-secret.txt
+      - --bootnodes=enode://d860a01f9722d78051619d1e2351aba3f43f943f6f00718d1b9baa4101932a1f5011f16bb2b1bb35db20d6fe28fa0bf09636d26a87d31de9ec6203eeedb1f666@18.138.108.67:30303
+    networks:
+      eth_network:
+        aliases:
+          - reth
+
+  # Ethereum Consensus Layer (Lighthouse)
+  lighthouse:
+    image: sigp/lighthouse:latest
+    container_name: ethereum-lighthouse
+    restart: unless-stopped
+    ports:
+      - "9001:9001"         # P2P TCP
+      - "9001:9001/udp"     # P2P UDP
+      - "5052:5052"         # HTTP API
+      - "5053:5053"         # Metrics
+    volumes:
+      - /mnt/eth/lighthouse:/root/.lighthouse
+      - /mnt/eth/jwt-secret.txt:/jwt-secret.txt:ro
+    command:
+      - lighthouse
+      - beacon_node
+      - --execution-endpoint=http://reth:8551
+      - --execution-jwt=/jwt-secret.txt
+      - --enr-address=170.55.104.206
+      - --enr-udp-port=9001
+      - --enr-tcp-port=9001
+      - --http
+      - --http-address=0.0.0.0
+      - --port=9001
+      - --discovery-port=9001
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-port=5053
+      - --checkpoint-sync-url=https://mainnet-checkpoint-sync.attestant.io
+      - --target-peers=200
+      - --network=mainnet
+      - --disable-packet-filter
+    depends_on:
+      reth:
+        condition: service_healthy
+    networks:
+      eth_network:
+        aliases:
+          - lighthouse
