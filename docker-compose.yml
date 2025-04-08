@@ -106,7 +106,12 @@ services:
       - --chain=base
       # Data Directory
       - --datadir=/root/.reth
-      - --prune=everything
+      - --prune.senderrecovery.full
+      - --prune.transactionlookup.full
+      - --prune.accounthistory.full
+      - --prune.storagehistory.full
+      - --prune.receipts.full
+      - --engine.caching-and-prewarming
       # Sequencer URL
       - --rollup.sequencer-http=https://mainnet-sequencer.base.org
       - --rollup.disable-tx-pool-gossip 
