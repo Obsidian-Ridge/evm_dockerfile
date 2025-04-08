@@ -157,7 +157,7 @@ services:
       - --l1.trustrpc=true 
       # L2 Conncetion
       - --l2=http://base-reth:8547
-      - --l2.beacon=/jwt-secret.txt
+      - --l2.jwt-secret=/jwt-secret.txt
       # Execution Layer
       - --rpc.addr=0.0.0.0
       - --rpc.port=8549
