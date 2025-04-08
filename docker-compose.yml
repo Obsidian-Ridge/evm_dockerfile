@@ -166,3 +166,10 @@ services:
       # Execution Layer
       - --rpc.addr=0.0.0.0
       - --rpc.port=8549
+    depends_on:
+      - base-reth
+    networks:
+      eth_network:
+        aliases:
+          - base-rollup
+
