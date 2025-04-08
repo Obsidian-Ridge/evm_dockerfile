@@ -106,11 +106,7 @@ services:
       - --chain=base
       # Data Directory
       - --datadir=/root/.reth
-      - --prune.senderrecovery.distance=100
-      - --prune.transactionlookup.distance=100
-      - --prune.accounthistory.distance=100
-      - --prune.storagehistory.distance=100
-      - --prune.receipts.distance=100
+      - --full
       - --engine.caching-and-prewarming
       # Sequencer URL
       - --rollup.sequencer-http=https://mainnet-sequencer.base.org
