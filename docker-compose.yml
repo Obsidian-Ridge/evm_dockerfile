@@ -88,7 +88,7 @@ services:
           - lighthouse
   # Base Execution Layer (Reth)
   base-reth:
-    image: ghcr.io/paradigmxyz/op-reth:latest
+    image: ghcr.io/paradigmxyz/op-reth:nightly
     container_name: base-reth
     restart: unless-stopped
     ports:
@@ -122,6 +122,8 @@ services:
       - --http.addr=0.0.0.0
       - --http.port=8547
       - --http.api=all
+      - --rpc.max-subscriptions-per-connection=2048
+      - --rpc.max-connections=1000
       # WebSocket Port
       - --ws
       - --ws.addr=0.0.0.0
