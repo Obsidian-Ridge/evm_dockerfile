@@ -154,7 +154,7 @@ services:
     command:
       # OP Node for Base
       - op-node
-      - --network=base_mainnet
+      - --network=base
       - --syncmode=execution-layer
       # L1 Connection
       - --l1=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
