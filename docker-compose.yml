@@ -107,9 +107,6 @@ services:
       # Data Directory
       - --datadir=/root/.reth
       - --full #correct
-      - --prune.senderrecovery.full        # Unless you need `from` reconstruction
-      - --prune.accounthistory.full        # No historical balances
-      - --prune.storagehistory.full        # No historical storage for contracts
       - --engine.caching-and-prewarming
       # Sequencer URL
       - --rollup.sequencer-http=https://mainnet-sequencer.base.org
