@@ -71,8 +71,7 @@ services:
       - --network=mainnet
       - --disable-packet-filter
     depends_on:
-      reth:
-        condition: service_healthy
+      - reth
     networks:
       eth_network:
         aliases:
