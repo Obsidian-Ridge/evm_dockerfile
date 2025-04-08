@@ -20,8 +20,7 @@ services:
       - /mnt/eth/jwt-secret.txt:/jwt-secret.txt:ro
     command:
       - node
-      - --chain=mainnet
-      - --data-dir=/root/.reth
+      - --datadir=/root/.reth
       - --http
       - --http.addr=0.0.0.0
       - --http.port=8545
