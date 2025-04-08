@@ -20,15 +20,25 @@ services:
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
       - node
+      # Data Directory
       - --datadir=/root/.reth
+      # P2P
+      - --enable-discv5-discovery
+      - --discovery.port=30303
+      - --port=30303
+      - --max-outbound-peers=150
+      - --max-inbound-peers=150
+      # HTTP Port
       - --http
       - --http.addr=0.0.0.0
       - --http.port=8545
       - --http.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots,flashbots,miner,mev
+      # WebSocket Port
       - --ws
       - --ws.addr=0.0.0.0
       - --ws.port=8546
       - --ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots,flashbots,miner,mev
+      # Authentication
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=8551
       - --authrpc.jwtsecret=/jwt-secret.txt
@@ -76,3 +86,78 @@ services:
       eth_network:
         aliases:
           - lighthouse
+  # Base Execution Layer (Reth)
+  base-reth:
+    image: ghcr.io/paradigmxyz/reth
+    container_name: base-reth
+    restart: unless-stopped
+    ports:
+      - "8547:8547"         # HTTP
+      - "8548:8548"         # WebSocket
+      - "30305:30305"       # P2P TCP
+      - "30305:30305/udp"   # P2P UDP
+      - "8552:8552"         # Engine API
+    volumes:
+      - ./data/base-reth:/root/.reth
+      - ./jwt-secret.txt:/jwt-secret.txt:ro
+    command:
+      - node
+      # Explicitly set to Base
+      - --chain=base
+      # Data Directory
+      - --datadir=/root/.reth
+      - --prune=everything
+      # Sequencer URL
+      - --rollup.sequencer-http=https://mainnet-sequencer.base.org
+      - --rollup.disable-tx-pool-gossip 
+      # Base P2P
+      - --enable-discv5-discovery
+      - --discovery.port=30305
+      - --port=30305
+      - --max-outbound-peers=200
+      - --max-inbound-peers=200
+      # HTTP Port
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8547
+      - --http.api=all
+      # WebSocket Port
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8548
+      - --ws.api=all
+      # Authentication
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8552
+      - --authrpc.jwtsecret=/jwt-secret.txt
+      # Bootnodes
+      - --bootnodes=enode://87a32fd13bd596b2ffca97020e31aef4ddcc1bbd4b95bb633d16c1329f654f34049ed240a36b449fda5e5225d70fe40bc667f53c304b71f8e68fc9d448690b51@3.231.138.188:30301,enode://ca21ea8f176adb2e229ce2d700830c844af0ea941a1d8152a9513b966fe525e809c3a6c73a2c18a12b74ed6ec4380edf91662778fe0b79f6a591236e49e176f9@184.72.129.189:30301,enode://acf4507a211ba7c1e52cdf4eef62cdc3c32e7c9c47998954f7ba024026f9a6b2150cd3f0b734d9c78e507ab70d59ba61dfe5c45e1078c7ad0775fb251d7735a2@3.220.145.177:30301,enode://8a5a5006159bf079d06a04e5eceab2a1ce6e0f721875b2a9c96905336219dbe14203d38f70f3754686a6324f786c2f9852d8c0dd3adac2d080f4db35efc678c5@3.231.11.52:30301,enode://cdadbe835308ad3557f9a1de8db411da1a260a98f8421d62da90e71da66e55e98aaa8e90aa7ce01b408a54e4bd2253d701218081ded3dbe5efbbc7b41d7cef79@54.198.153.150:30301
+    networks:
+      eth_network:
+        aliases:
+          - base-reth
+  # Base Rollup Client (OP Node)
+  rollup-client:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:latest
+    container_name: base-rollup
+    restart: unless-stopped
+    ports:
+      - "8549:8549"         # HTTP
+      - "8550:8550"         # WebSocket
+    volumes:
+      - ./jwt-secret.txt:/jwt-secret.txt:ro
+    command:
+      # OP Node for Base
+      - op-node
+      - --network=base_mainnet
+      - --syncmode=execution-layer
+      # L1 Connection
+      - --l1=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
+      - --l1.beacon=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
+      - --l1.trustrpc=true 
+      # L2 Conncetion
+      - --l2=http://base-reth:8547
+      - --l2.beacon=/jwt-secret.txt
+      # Execution Layer
+      - --rpc.addr=0.0.0.0
+      - --rpc.port=8549
