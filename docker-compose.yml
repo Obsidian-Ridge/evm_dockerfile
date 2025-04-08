@@ -16,8 +16,8 @@ services:
       - "30303:30303/udp"   # P2P UDP
       - "8551:8551"         # Engine API
     volumes:
-      - /mnt/eth/reth:/root/.reth
-      - /mnt/eth/jwt-secret.txt:/jwt-secret.txt:ro
+      - ./data/reth:/root/.reth
+      - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
       - node
       - --datadir=/root/.reth
@@ -49,8 +49,8 @@ services:
       - "5052:5052"         # HTTP API
       - "5053:5053"         # Metrics
     volumes:
-      - /mnt/eth/lighthouse:/root/.lighthouse
-      - /mnt/eth/jwt-secret.txt:/jwt-secret.txt:ro
+      - ./data/lighthouse:/root/.lighthouse
+      - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
       - lighthouse
       - beacon_node
