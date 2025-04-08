@@ -88,7 +88,7 @@ services:
           - lighthouse
   # Base Execution Layer (Reth)
   base-reth:
-    image: ghcr.io/paradigmxyz/reth
+    image: ghcr.io/paradigmxyz/op-reth:latest
     container_name: base-reth
     restart: unless-stopped
     ports:
