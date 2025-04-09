@@ -137,6 +137,7 @@ services:
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=8552
       - --authrpc.jwtsecret=/jwt-secret.txt
+      - --authrpc.vhosts=base-rollup,localhost,base-geth
       # Sequencer URL
       - --rollup.sequencerhttp=https://mainnet-sequencer.base.org
       - --rollup.disabletxpoolgossip
