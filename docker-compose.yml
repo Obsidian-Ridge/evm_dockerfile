@@ -112,7 +112,7 @@ services:
       - "8552:8552"         # Engine API
       - "5055:5055"         # Metrics
     volumes:
-      - ./data/base-geth:/root/.ethereum
+      - /mnt/base-data/base-geth:/root/.ethereum
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
       # Explicitly set to Base
