@@ -143,7 +143,7 @@ services:
       # Base P2P
       - --discovery.port=30305
       - --port=30305
-      - --maxpeers=300
+      - --maxpeers=500
       - --discovery.v5
       # Database
       - --db.engine=pebble
@@ -171,6 +171,8 @@ services:
     ports:
       - "8549:8549"         # HTTP
       - "8550:8550"         # WebSocket
+      - "30306:30306"       # P2P TCP
+      - "30306:30306/udp"   # P2P UDP
     volumes:
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
@@ -179,8 +181,8 @@ services:
       - --network=base-mainnet
       - --syncmode=execution-layer
       # L1 Connection
-      - --l1=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
-      - --l1.beacon=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
+      - --l1=http://reth:8545
+      - --l1.beacon=http://lighthouse:5052
       - --l1.trustrpc=true 
       # L2 Connection
       - --l2=http://base-geth:8552
@@ -188,6 +190,12 @@ services:
       # Execution Layer
       - --rpc.addr=0.0.0.0
       - --rpc.port=8549
+      # Optimizations
+      - --verifier.l1-confs=0
+      - --p2p.peers.hi=500
+      - --l1.http-poll-interval=3s
+      - --l1.max-concurrency=20
+      - --l2.engine-rpc-timeout=5s
     depends_on:
       - base-geth
     networks:
