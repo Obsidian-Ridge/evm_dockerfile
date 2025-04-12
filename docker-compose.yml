@@ -122,12 +122,12 @@ services:
       - --http
       - --http.addr=0.0.0.0
       - --http.port=8547
-      - --http.api=eth,net,web3,debug,txpool
+      - --http.api=eth,net,web3,debug,txpool,admin
       # WebSocket Port
       - --ws
       - --ws.addr=0.0.0.0
       - --ws.port=8548
-      - --ws.api=eth,net,web3,debug,txpool
+      - --ws.api=eth,net,web3,debug,txpool,admin
       # Authentication
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=8552
