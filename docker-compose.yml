@@ -109,6 +109,7 @@ services:
     volumes:
       - /mnt/base-data/base-geth:/root/.ethereum
       - ./static-nodes.json:/root/.ethereum/geth/static-nodes.json:ro
+      - ./trusted-nodes.json:/root/.ethereum/geth/trusted-nodes.json:ro
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
       # Explicitly set to Base
