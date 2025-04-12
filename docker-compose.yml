@@ -108,7 +108,7 @@ services:
       - "5055:5055"         # Metrics
     volumes:
       - /mnt/base-data/base-geth:/root/.ethereum
-      - ./static-nodes.json:/root/.ethereum/static-nodes.json:ro
+      - ./static-nodes.json:/root/.ethereum/geth/static-nodes.json:ro
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
       # Explicitly set to Base
