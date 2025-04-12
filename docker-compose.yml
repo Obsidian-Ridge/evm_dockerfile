@@ -115,7 +115,7 @@ services:
       # Data Directory
       - --datadir=/root/.ethereum
       # Configuration
-      - --syncmode=snap
+      - --syncmode=full
       - --gcmode=full
       - --history.transactions=100
       # HTTP Port
