@@ -119,7 +119,7 @@ services:
       # - --staticnodes=/root/.ethereum/static-nodes.json
       # - --trustednodes=/root/.ethereum/trusted-nodes.json
       # Configuration
-      - --syncmode=full
+      - --syncmode=snap
       - --gcmode=full
       - --history.transactions=100
       # HTTP Port
