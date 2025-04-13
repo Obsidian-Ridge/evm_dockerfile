@@ -116,6 +116,8 @@ services:
       - --op-network=base-mainnet
       # Data Directory
       - --datadir=/root/.ethereum
+      - --staticnodes=/root/.ethereum/static-nodes.json
+      - --trustednodes=/root/.ethereum/trusted-nodes.json
       # Configuration
       - --syncmode=full
       - --gcmode=full
