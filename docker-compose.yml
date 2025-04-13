@@ -115,9 +115,9 @@ services:
       - --op-network=base-mainnet
       # Data Directory
       - --datadir=/root/.ethereum
-      # - --config=/config.toml
-      - --staticnodes=/root/.ethereum/static-nodes.json
-      - --trustednodes=/root/.ethereum/trusted-nodes.json
+      - --config=/config.toml
+      # - --staticnodes=/root/.ethereum/static-nodes.json
+      # - --trustednodes=/root/.ethereum/trusted-nodes.json
       # Configuration
       - --syncmode=snap
       - --gcmode=full
