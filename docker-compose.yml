@@ -116,8 +116,8 @@ services:
       - --op-network=base-mainnet
       # Data Directory
       - --datadir=/root/.ethereum
-      - --staticnodes=/root/.ethereum/static-nodes.json
-      - --trustednodes=/root/.ethereum/trusted-nodes.json
+      # - --staticnodes=/root/.ethereum/static-nodes.json
+      # - --trustednodes=/root/.ethereum/trusted-nodes.json
       # Configuration
       - --syncmode=full
       - --gcmode=full
@@ -151,7 +151,7 @@ services:
       - --discovery.v5
       # Database
       - --db.engine=pebble
-      - --cache=12288
+      - --cache=16448
       - --cache.database=50
       - --cache.trie=30
       - --cache.gc=5
