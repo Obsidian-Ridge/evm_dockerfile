@@ -27,8 +27,8 @@ services:
       - --enable-discv5-discovery
       - --discovery.port=30303
       - --port=30303
-      - --max-outbound-peers=150
-      - --max-inbound-peers=150
+      - --max-outbound-peers=500
+      - --max-inbound-peers=500
       # HTTP Port
       - --http
       - --http.addr=0.0.0.0
@@ -94,10 +94,10 @@ services:
       eth_network:
         aliases:
           - lighthouse
-  # Base Execution Layer (Reth)
-  base-geth:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:latest
-    container_name: base-geth
+  # Base Execution Layer (Reth)# Base Execution Layer (Reth)
+  base-reth:
+    image: ghcr.io/paradigmxyz/op-reth:nightly
+    container_name: base-reth
     restart: unless-stopped
     ports:
       - "8547:8547"         # HTTP
@@ -107,66 +107,49 @@ services:
       - "8552:8552"         # Engine API
       - "5055:5055"         # Metrics
     volumes:
-      - /mnt/base-data/base-geth:/root/.ethereum
-      - ./base-config.toml:/config.toml:ro
+      - /mnt/eth-data/base-reth:/root/.reth
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
+      - node
       # Explicitly set to Base
-      - --op-network=base-mainnet
+      - --chain=base
       # Data Directory
-      - --datadir=/root/.ethereum
-      # - --config=/config.toml
-      # - --staticnodes=/root/.ethereum/static-nodes.json
-      # - --trustednodes=/root/.ethereum/trusted-nodes.json
-      # Configuration
-      - --syncmode=snap
-      - --gcmode=full
-      - --history.transactions=100
+      - --datadir=/root/.reth
+      - --engine.caching-and-prewarming
+      # Sequencer URL
+      - --rollup.sequencer-http=https://mainnet-sequencer.base.org
+      - --rollup.disable-tx-pool-gossip 
+      # Base P2P
+      - --enable-discv5-discovery
+      - --discovery.port=30305
+      - --port=30305
+      - --max-outbound-peers=500
+      - --max-inbound-peers=500
       # HTTP Port
       - --http
       - --http.addr=0.0.0.0
       - --http.port=8547
-      - --http.api=eth,net,web3,debug,txpool,admin
+      - --http.api=all
+      - --rpc.max-subscriptions-per-connection=2048
+      - --rpc.max-connections=1000
       # WebSocket Port
       - --ws
       - --ws.addr=0.0.0.0
       - --ws.port=8548
-      - --ws.api=eth,net,web3,debug,txpool,admin
+      - --ws.api=all
       # Authentication
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=8552
       - --authrpc.jwtsecret=/jwt-secret.txt
-      - --authrpc.vhosts=base-rollup,localhost,base-geth
-      # Sequencer URL
-      - --rollup.sequencerhttp=https://mainnet-sequencer.base.org
-      - --rollup.disabletxpoolgossip
       # Metrics
-      - --metrics
-      - --metrics.addr=0.0.0.0
-      - --metrics.port=5055
-      # Base P2P
-      - --discovery.port=30305
-      - --port=30305
-      - --maxpeers=500
-      - --discovery.v5
-      # Database
-      - --db.engine=pebble
-      - --cache=16448
-      - --cache.database=50
-      - --cache.trie=30
-      - --cache.gc=5
-      - --cache.snapshot=15
-      # Transaction pool optimization
-      - --txpool.accountslots=16
-      - --txpool.accountqueue=64
-      - --txpool.globalslots=8192
-      - --txpool.lifetime=1h
+      - --metrics=0.0.0.0:5055
       # Bootnodes
       - --bootnodes=enode://87a32fd13bd596b2ffca97020e31aef4ddcc1bbd4b95bb633d16c1329f654f34049ed240a36b449fda5e5225d70fe40bc667f53c304b71f8e68fc9d448690b51@3.231.138.188:30301,enode://ca21ea8f176adb2e229ce2d700830c844af0ea941a1d8152a9513b966fe525e809c3a6c73a2c18a12b74ed6ec4380edf91662778fe0b79f6a591236e49e176f9@184.72.129.189:30301,enode://acf4507a211ba7c1e52cdf4eef62cdc3c32e7c9c47998954f7ba024026f9a6b2150cd3f0b734d9c78e507ab70d59ba61dfe5c45e1078c7ad0775fb251d7735a2@3.220.145.177:30301,enode://8a5a5006159bf079d06a04e5eceab2a1ce6e0f721875b2a9c96905336219dbe14203d38f70f3754686a6324f786c2f9852d8c0dd3adac2d080f4db35efc678c5@3.231.11.52:30301,enode://cdadbe835308ad3557f9a1de8db411da1a260a98f8421d62da90e71da66e55e98aaa8e90aa7ce01b408a54e4bd2253d701218081ded3dbe5efbbc7b41d7cef79@54.198.153.150:30301
     networks:
       eth_network:
         aliases:
-          - base-geth
+          - base-reth
+
   # Base Rollup Client (OP Node)
   rollup-client:
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:latest
@@ -189,7 +172,7 @@ services:
       - --l1.beacon=http://lighthouse:5052
       - --l1.trustrpc=true 
       # L2 Connection
-      - --l2=http://base-geth:8552
+      - --l2=http://base-reth:8547
       - --l2.jwt-secret=/jwt-secret.txt
       # Execution Layer
       - --rpc.addr=0.0.0.0
@@ -201,7 +184,7 @@ services:
       - --l1.max-concurrency=20
       - --l2.engine-rpc-timeout=5s
     depends_on:
-      - base-geth
+      - base-reth
     networks:
       eth_network:
         aliases:
