@@ -168,8 +168,8 @@ services:
       - --network=base-mainnet
       - --syncmode=execution-layer
       # L1 Connection
-      - --l1=http://reth:8545
-      - --l1.beacon=http://lighthouse:5052
+      - --l1=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/ # http://reth:8545
+      - --l1.beacon=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/ # http://lighthouse:5052
       - --l1.trustrpc=true 
       # L2 Connection
       - --l2=http://base-reth:8547
