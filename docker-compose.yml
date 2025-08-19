@@ -107,7 +107,7 @@ services:
       - "8552:8552"         # Engine API
       - "5055:5055"         # Metrics
     volumes:
-      - /mnt/eth-data/base-reth:/root/.reth
+      - ./data/base-reth:/root/.reth
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
       - node
