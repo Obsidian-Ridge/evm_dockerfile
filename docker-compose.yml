@@ -1,66 +1,51 @@
-networks:
-  eth_network:
-    name: ethereum_network
-    driver: bridge
-
 services:
-  # Ethereum Execution Layer (Reth)
+  # ----------------------------------
+  # L1 EXECUTION LAYER (Ethereum Mainnet)
+  # ----------------------------------
   reth:
-    image: ghcr.io/paradigmxyz/reth
+    image: ghcr.io/paradigmxyz/reth:latest
     container_name: reth
     restart: unless-stopped
     ports:
-      - "8545:8545"         # HTTP
-      - "8546:8546"         # WebSocket
-      - "30303:30303"       # P2P TCP
-      - "30303:30303/udp"   # P2P UDP
-      - "8551:8551"         # Engine API
+      - "30304:30303/tcp"   # Map external 30304 to internal 30303 (Peering)
+      - "30304:30303/udp"   # Map external 30304 to internal 30303 (Discovery)
+      - "8545:8545"         # RPC (So Op-Node can reach it)
+      - "8551:8551"         # Engine (So Lighthouse can reach it)
       - "5054:5054"         # Metrics
     volumes:
       - ./data/reth:/root/.reth
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
       - node
-      # Data Directory
+      - --chain=mainnet
       - --datadir=/root/.reth
-      # P2P
+      - --full
+      - --max-outbound-peers=500
+      - --max-inbound-peers=500
+      - --metrics=0.0.0.0:5054
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt-secret.txt
       - --enable-discv5-discovery
       - --discovery.port=30303
       - --port=30303
-      - --max-outbound-peers=500
-      - --max-inbound-peers=500
-      # HTTP Port
       - --http
       - --http.addr=0.0.0.0
       - --http.port=8545
       - --http.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots,flashbots,miner,mev
-      # WebSocket Port
       - --ws
       - --ws.addr=0.0.0.0
       - --ws.port=8546
       - --ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots,flashbots,miner,mev
-      # Metrics
-      - --metrics=0.0.0.0:5054
-      # Authentication
-      - --authrpc.addr=0.0.0.0
-      - --authrpc.port=8551
-      - --authrpc.jwtsecret=/jwt-secret.txt
-      - --bootnodes=enode://87a32fd13bd596b2ffca97020e31aef4ddcc1bbd4b95bb633d16c1329f654f34049ed240a36b449fda5e5225d70fe40bc667f53c304b71f8e68fc9d448690b51@3.231.138.188:30301,enode://ca21ea8f176adb2e229ce2d700830c844af0ea941a1d8152a9513b966fe525e809c3a6c73a2c18a12b74ed6ec4380edf91662778fe0b79f6a591236e49e176f9@184.72.129.189:30301,enode://acf4507a211ba7c1e52cdf4eef62cdc3c32e7c9c47998954f7ba024026f9a6b2150cd3f0b734d9c78e507ab70d59ba61dfe5c45e1078c7ad0775fb251d7735a2@3.220.145.177:30301,enode://8a5a5006159bf079d06a04e5eceab2a1ce6e0f721875b2a9c96905336219dbe14203d38f70f3754686a6324f786c2f9852d8c0dd3adac2d080f4db35efc678c5@3.231.11.52:30301,enode://cdadbe835308ad3557f9a1de8db411da1a260a98f8421d62da90e71da66e55e98aaa8e90aa7ce01b408a54e4bd2253d701218081ded3dbe5efbbc7b41d7cef79@54.198.153.150:30301
-    networks:
-      eth_network:
-        aliases:
-          - reth
-
-  # Ethereum Consensus Layer (Lighthouse)
+      - --nat=any
+  # ----------------------------------
+  # L1 CONSENSUS LAYER (Lighthouse)
+  # ----------------------------------
   lighthouse:
     image: sigp/lighthouse:latest
     container_name: ethereum-lighthouse
     restart: unless-stopped
-    ports:
-      - "9001:9001"         # P2P TCP
-      - "9001:9001/udp"     # P2P UDP
-      - "5052:5052"         # HTTP API
-      - "5053:5053"         # Metrics
+    network_mode: "host"
     volumes:
       - ./data/lighthouse:/root/.lighthouse
       - ./jwt-secret.txt:/jwt-secret.txt:ro
@@ -68,125 +53,124 @@ services:
       - lighthouse
       - beacon_node
       - --network=mainnet
-      # Execution Layer
-      - --execution-endpoint=http://reth:8551
+      - --execution-endpoint=http://127.0.0.1:8551
       - --execution-jwt=/jwt-secret.txt
-      - --enr-address=170.55.104.206
-      - --enr-udp-port=9001
-      - --enr-tcp-port=9001
-      # HTTP API
-      - --http
-      - --http-address=0.0.0.0
       - --port=9001
       - --discovery-port=9001
-      # Metrics
+      - --http
+      - --http-address=0.0.0.0
       - --metrics
       - --metrics-address=0.0.0.0
       - --metrics-port=5053
-      # Checkpoint Sync
       - --checkpoint-sync-url=https://mainnet-checkpoint-sync.attestant.io
-      - --target-peers=200
       - --disable-packet-filter
 
-    depends_on:
-      - reth
-    networks:
-      eth_network:
-        aliases:
-          - lighthouse
-  # Base Execution Layer (Reth)# Base Execution Layer (Reth)
+  # ----------------------------------
+  # L2 EXECUTION LAYER (Base Reth)
+  # ----------------------------------
   base-reth:
-    image: ghcr.io/paradigmxyz/op-reth:nightly
+    image: ghcr.io/base/node-reth:latest
     container_name: base-reth
     restart: unless-stopped
-    ports:
-      - "8547:8547"         # HTTP
-      - "8548:8548"         # WebSocket
-      - "30305:30305"       # P2P TCP
-      - "30305:30305/udp"   # P2P UDP
-      - "8552:8552"         # Engine API
-      - "5055:5055"         # Metrics
+    network_mode: "host"
+    environment:
+      # Official Flashblocks connection for <200ms latency
+      - RETH_FB_WEBSOCKET_URL=wss://mainnet.flashblocks.base.org/ws
+      - NODE_TYPE=base
     volumes:
-      - ./data/base-reth:/root/.reth
+      - ./data/base-reth-fast:/root/.reth
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
+      - /app/base-reth-node
       - node
-      # Explicitly set to Base
       - --chain=base
-      # Data Directory
       - --datadir=/root/.reth
-      - --engine.caching-and-prewarming
-      # Sequencer URL
+
+      # --- Apparently for flashblocks ---
+      - --websocket-url=wss://mainnet.flashblocks.base.org/ws
+      # --- ENGINE LATENCY TUNING ---
+      # Buffers 12 blocks in RAM to prevent SSD I/O bottlenecks during heavy load
+      - --engine.memory-block-buffer-target=0
+      - --engine.persistence-threshold=0
+
+      # --- RPC CACHE TUNING ---
+      # Serves API requests from RAM
+      - --rpc-cache.max-blocks=10000
+      - --rpc-cache.max-receipts=10000
+      - --rpc-cache.max-concurrent-db-requests=2048
+
+      # Database
+      - --db.max-size=8TB
+
+      # Rollup Connection
       - --rollup.sequencer-http=https://mainnet-sequencer.base.org
-      - --rollup.disable-tx-pool-gossip 
-      # Base P2P
+      - --rollup.disable-tx-pool-gossip
+
+      # Networking (Host Mode)
       - --enable-discv5-discovery
       - --discovery.port=30305
       - --port=30305
-      - --max-outbound-peers=500
-      - --max-inbound-peers=500
-      # HTTP Port
+      - --max-outbound-peers=100
+      - --max-inbound-peers=100
+
+      # APIs
       - --http
       - --http.addr=0.0.0.0
       - --http.port=8547
-      - --http.api=all
-      - --rpc.max-subscriptions-per-connection=2048
-      - --rpc.max-connections=1000
-      # WebSocket Port
       - --ws
       - --ws.addr=0.0.0.0
       - --ws.port=8548
-      - --ws.api=all
-      # Authentication
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=8552
       - --authrpc.jwtsecret=/jwt-secret.txt
-      # Metrics
       - --metrics=0.0.0.0:5055
-      # Bootnodes
-      - --bootnodes=enode://87a32fd13bd596b2ffca97020e31aef4ddcc1bbd4b95bb633d16c1329f654f34049ed240a36b449fda5e5225d70fe40bc667f53c304b71f8e68fc9d448690b51@3.231.138.188:30301,enode://ca21ea8f176adb2e229ce2d700830c844af0ea941a1d8152a9513b966fe525e809c3a6c73a2c18a12b74ed6ec4380edf91662778fe0b79f6a591236e49e176f9@184.72.129.189:30301,enode://acf4507a211ba7c1e52cdf4eef62cdc3c32e7c9c47998954f7ba024026f9a6b2150cd3f0b734d9c78e507ab70d59ba61dfe5c45e1078c7ad0775fb251d7735a2@3.220.145.177:30301,enode://8a5a5006159bf079d06a04e5eceab2a1ce6e0f721875b2a9c96905336219dbe14203d38f70f3754686a6324f786c2f9852d8c0dd3adac2d080f4db35efc678c5@3.231.11.52:30301,enode://cdadbe835308ad3557f9a1de8db411da1a260a98f8421d62da90e71da66e55e98aaa8e90aa7ce01b408a54e4bd2253d701218081ded3dbe5efbbc7b41d7cef79@54.198.153.150:30301
-    networks:
-      eth_network:
-        aliases:
-          - base-reth
-
-  # Base Rollup Client (OP Node)
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+  # ----------------------------------
+  # L2 ROLLUP CLIENT (OP Node)
+  # ----------------------------------
   rollup-client:
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:latest
     container_name: base-rollup
     restart: unless-stopped
-    ports:
-      - "8549:8549"         # HTTP
-      - "8550:8550"         # WebSocket
-      - "30306:30306"       # P2P TCP
-      - "30306:30306/udp"   # P2P UDP
+    network_mode: "host"
     volumes:
       - ./jwt-secret.txt:/jwt-secret.txt:ro
     command:
-      # OP Node for Base
-      - op-node
+      # CRITICAL: Correct binary path
+      - /usr/local/bin/op-node
       - --network=base-mainnet
       - --syncmode=execution-layer
-      # L1 Connection
-      - --l1=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/ # http://reth:8545
-      - --l1.beacon=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/ # http://lighthouse:5052
-      - --l1.trustrpc=true 
-      # L2 Connection
-      - --l2=http://base-reth:8552
+
+      # L1 CONNECTION (QuickNode)
+      # Once your Local L1 (reth above) is synced, switch these to http://127.0.0.1:8545
+      - --l1=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
+      - --l1.beacon=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
+      - --l1.trustrpc=true
+      - --l1.rpckind=quicknode
+
+      # L1 Speed Tuning
+      - --l1.max-concurrency=200
+      - --l1.rpc-max-batch-size=50
+      - --l1.http-poll-interval=1s
+
+      # L2 Connection (Localhost)
+      - --l2=http://127.0.0.1:8552
+      - --l2.enginekind=reth
       - --l2.jwt-secret=/jwt-secret.txt
-      # Execution Layer
+
+      # Aggressive Latency Flags
+      - --verifier.l1-confs=0
+      - --p2p.peers.hi=100
+      - --l2.engine-rpc-timeout=5s
+
       - --rpc.addr=0.0.0.0
       - --rpc.port=8549
-      # Optimizations
-      - --verifier.l1-confs=0
-      - --p2p.peers.hi=500
-      - --l1.http-poll-interval=3s
-      - --l1.max-concurrency=20
-      - --l2.engine-rpc-timeout=5s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     depends_on:
       - base-reth
-    networks:
-      eth_network:
-        aliases:
-          - base-rollup
-
