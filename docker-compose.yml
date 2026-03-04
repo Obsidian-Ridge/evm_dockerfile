@@ -51,6 +51,13 @@ services:
       - --discovery.port
       - "30303"
       - --enable-discv5-discovery
+      - --dns-retries
+      - "3"
+
+      # Peer reliability (from reth docs: persist peers, filter wrong-network)
+      - --peers-file
+      - /data/peers.txt
+      - --enforce-enr-fork-id
 
       # Peer tuning
       - --max-outbound-peers
@@ -66,6 +73,7 @@ services:
 
     volumes:
       - ./reth-data:/data
+      - ./reth.toml:/data/reth.toml
       - ./jwt:/jwt
 
     ports:

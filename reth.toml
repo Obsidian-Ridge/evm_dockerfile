@@ -1,0 +1,87 @@
+# Reth configuration for optimal L1 (mainnet) node
+# Placed in datadir; mount this file at /data/reth.toml in the container
+# See: https://reth.rs/run/configuration/
+
+# -----------------------------------------------------------------------------
+# Peers: connection refill, limits, backoff, ban
+# -----------------------------------------------------------------------------
+[peers]
+# How often to try filling peer slots (default 5s)
+refill_slots_interval = "5s"
+# Only connect to trusted_nodes if true; we use discovery so false
+connect_trusted_nodes_only = false
+# Drop non-trusted peer after this many backoff attempts (default 5)
+max_backoff_count = 5
+# How long to ban badly behaving peers (default 12h)
+ban_duration = "12h"
+# Throttle repeated inbound connection attempts per IP
+incoming_ip_throttle_duration = "30s"
+
+[peers.connection_info]
+# Match CLI: 150 outbound, 150 inbound
+max_outbound = 150
+max_inbound = 150
+# More concurrent dials = faster peer refill (default 15)
+max_concurrent_outbound_dials = 20
+
+[peers.backoff_durations]
+# Wait before re-dialing after failed connection
+low = "30s"
+medium = "3m"
+high = "15m"
+max = "1h"
+
+[peers.reputation_weights]
+# Penalties for misbehaviour (defaults from docs)
+bad_message = -16384
+bad_block = -16384
+bad_transactions = -16384
+already_seen_transactions = 0
+timeout = -4096
+bad_protocol = -2147483648
+failed_to_connect = -25600
+dropped = -4096
+bad_announcement = -1024
+
+# -----------------------------------------------------------------------------
+# Sync stages: headers & bodies (faster sync when bandwidth allows)
+# -----------------------------------------------------------------------------
+[stages.headers]
+downloader_max_concurrent_requests = 120
+downloader_min_concurrent_requests = 10
+downloader_max_buffered_responses = 120
+downloader_request_limit = 1000
+# Headers to persist before disk write; lower = more I/O, less memory
+commit_threshold = 10000
+
+[stages.bodies]
+downloader_request_limit = 200
+downloader_stream_batch_size = 1000
+downloader_max_buffered_blocks_size_bytes = 2147483648
+downloader_min_concurrent_requests = 10
+downloader_max_concurrent_requests = 120
+
+# -----------------------------------------------------------------------------
+# Sessions: per-peer buffers and timeouts (stability under load)
+# -----------------------------------------------------------------------------
+[sessions]
+session_command_buffer = 32
+session_event_buffer = 260
+
+[sessions.pending_session_timeout]
+secs = 20
+nanos = 0
+
+[sessions.initial_internal_request_timeout]
+secs = 20
+nanos = 0
+
+[sessions.protocol_breach_request_timeout]
+secs = 120
+nanos = 0
+
+[sessions.limits]
+max_pending_inbound = 100
+max_pending_outbound = 50
+max_established_inbound = 150
+max_established_outbound = 150
