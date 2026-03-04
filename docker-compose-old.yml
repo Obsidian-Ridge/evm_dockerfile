@@ -1,0 +1,176 @@
+services:
+  # ----------------------------------
+  # L1 EXECUTION LAYER (Ethereum Mainnet)
+  # ----------------------------------
+  reth:
+    image: ghcr.io/paradigmxyz/reth:latest
+    container_name: reth
+    restart: unless-stopped
+    ports:
+      - "30304:30303/tcp"   # Map external 30304 to internal 30303 (Peering)
+      - "30304:30303/udp"   # Map external 30304 to internal 30303 (Discovery)
+      - "8545:8545"         # RPC (So Op-Node can reach it)
+      - "8551:8551"         # Engine (So Lighthouse can reach it)
+      - "5054:5054"         # Metrics
+    volumes:
+      - ./data/reth:/root/.reth
+      - ./jwt-secret.txt:/jwt-secret.txt:ro
+    command:
+      - node
+      - --chain=mainnet
+      - --datadir=/root/.reth
+      - --full
+      - --max-outbound-peers=500
+      - --max-inbound-peers=500
+      - --metrics=0.0.0.0:5054
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/jwt-secret.txt
+      - --enable-discv5-discovery
+      - --discovery.port=30303
+      - --port=30303
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8545
+      - --http.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots,flashbots,miner,mev
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots,flashbots,miner,mev
+      - --nat=any
+  # ----------------------------------
+  # L1 CONSENSUS LAYER (Lighthouse)
+  # ----------------------------------
+  lighthouse:
+    image: sigp/lighthouse:latest
+    container_name: ethereum-lighthouse
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./data/lighthouse:/root/.lighthouse
+      - ./jwt-secret.txt:/jwt-secret.txt:ro
+    command:
+      - lighthouse
+      - beacon_node
+      - --network=mainnet
+      - --execution-endpoint=http://127.0.0.1:8551
+      - --execution-jwt=/jwt-secret.txt
+      - --port=9001
+      - --discovery-port=9001
+      - --http
+      - --http-address=0.0.0.0
+      - --metrics
+      - --metrics-address=0.0.0.0
+      - --metrics-port=5053
+      - --checkpoint-sync-url=https://mainnet-checkpoint-sync.attestant.io
+      - --disable-packet-filter
+
+  # ----------------------------------
+  # L2 EXECUTION LAYER (Base Reth)
+  # ----------------------------------
+  base-reth:
+    image: ghcr.io/base/node-reth:latest
+    container_name: base-reth
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      # Official Flashblocks connection for <200ms latency
+      - RETH_FB_WEBSOCKET_URL=wss://mainnet.flashblocks.base.org/ws
+      - NODE_TYPE=base
+    volumes:
+      - ./data/base-reth-fast:/root/.reth
+      - ./jwt-secret.txt:/jwt-secret.txt:ro
+    command:
+      - /app/base-reth-node
+      - node
+      - --chain=base
+      - --datadir=/root/.reth
+
+      # --- Apparently for flashblocks ---
+      - --websocket-url=wss://mainnet.flashblocks.base.org/ws
+      # --- ENGINE LATENCY TUNING ---
+      # Buffers 12 blocks in RAM to prevent SSD I/O bottlenecks during heavy load
+      - --engine.memory-block-buffer-target=0
+      - --engine.persistence-threshold=0
+
+      # --- RPC CACHE TUNING ---
+      # Serves API requests from RAM
+      - --rpc-cache.max-blocks=10000
+      - --rpc-cache.max-receipts=10000
+      - --rpc-cache.max-concurrent-db-requests=2048
+
+      # Database
+      - --db.max-size=8TB
+
+      # Rollup Connection
+      - --rollup.sequencer-http=https://mainnet-sequencer.base.org
+      - --rollup.disable-tx-pool-gossip
+
+      # Networking (Host Mode)
+      - --enable-discv5-discovery
+      - --discovery.port=30305
+      - --port=30305
+      - --max-outbound-peers=100
+      - --max-inbound-peers=100
+
+      # APIs
+      - --http
+      - --http.addr=0.0.0.0
+      - --http.port=8547
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8548
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8552
+      - --authrpc.jwtsecret=/jwt-secret.txt
+      - --metrics=0.0.0.0:5055
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+  # ----------------------------------
+  # L2 ROLLUP CLIENT (OP Node)
+  # ----------------------------------
+  rollup-client:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:latest
+    container_name: base-rollup
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./jwt-secret.txt:/jwt-secret.txt:ro
+    command:
+      # CRITICAL: Correct binary path
+      - /usr/local/bin/op-node
+      - --network=base-mainnet
+      - --syncmode=execution-layer
+
+      # L1 CONNECTION (QuickNode)
+      # Once your Local L1 (reth above) is synced, switch these to http://127.0.0.1:8545
+      - --l1=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
+      - --l1.beacon=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
+      - --l1.trustrpc=true
+      - --l1.rpckind=quicknode
+
+      # L1 Speed Tuning
+      - --l1.max-concurrency=200
+      - --l1.rpc-max-batch-size=50
+      - --l1.http-poll-interval=1s
+
+      # L2 Connection (Localhost)
+      - --l2=http://127.0.0.1:8552
+      - --l2.enginekind=reth
+      - --l2.jwt-secret=/jwt-secret.txt
+
+      # Aggressive Latency Flags
+      - --verifier.l1-confs=0
+      - --p2p.peers.hi=100
+      - --l2.engine-rpc-timeout=5s
+
+      - --rpc.addr=0.0.0.0
+      - --rpc.port=8549
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    depends_on:
+      - base-reth
