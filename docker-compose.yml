@@ -19,23 +19,23 @@ services:
       - --datadir
       - /data
 
-      # HTTP RPC (container binds 0.0.0.0; host publishes to 127.0.0.1 only)
+      # HTTP RPC (op-node uses this as L1; debug for --l1.rpckind=debug_geth)
       - --http
       - --http.addr
       - 0.0.0.0
       - --http.port
       - "8545"
       - --http.api
-      - eth,net,web3,rpc,admin
+      - eth,net,web3,rpc,admin,debug
 
-      # WS (optional)
+      # WS (for subscriptions; debug for L1 tooling)
       - --ws
       - --ws.addr
       - 0.0.0.0
       - --ws.port
       - "8546"
       - --ws.api
-      - eth,net,web3,rpc,admin
+      - eth,net,web3,rpc,admin,debug
 
       # Engine API for Lighthouse (JWT protected; host publishes to 127.0.0.1 only)
       - --authrpc.addr
@@ -94,6 +94,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+
+    deploy:
+      resources:
+        reservations:
+          memory: 4G
 
     networks:
       - eth-network
@@ -181,6 +186,246 @@ services:
       timeout: 10s
       retries: 5
 
+    deploy:
+      resources:
+        reservations:
+          memory: 4G
+
+    networks:
+      - eth-network
+
+  # -----------------------------
+  # L2 Base execution (op-reth); Flashblocks-ready for future sub-200ms use.
+  # Pruned snapshot: see SETUP.md § Base L2 node (pruned snapshot).
+  # -----------------------------
+  base-reth:
+    image: ghcr.io/base/node-reth:latest
+    container_name: base-reth
+    restart: unless-stopped
+    depends_on:
+      reth: { condition: service_healthy }
+      lighthouse: { condition: service_healthy }
+
+    environment:
+      # Flashblocks: optional; node stays backward-compatible (2s blocks). Use when algo supports it.
+      - RETH_FB_WEBSOCKET_URL=wss://mainnet.flashblocks.base.org/ws
+
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+
+    command:
+      - node
+      - --chain
+      - base
+      - --datadir
+      - /data
+
+      # Rollup: sequencer + disable P2P tx gossip (replica node)
+      - --rollup.sequencer-http
+      - https://mainnet-sequencer.base.org
+      - --rollup.disable-tx-pool-gossip
+
+      # Flashblocks (sub-200ms); RPC remains backward-compatible until you use new APIs
+      - --websocket-url=wss://mainnet.flashblocks.base.org/ws
+
+      # Engine API for op-node (JWT)
+      - --authrpc.addr
+      - 0.0.0.0
+      - --authrpc.port
+      - "8552"
+      - --authrpc.jwtsecret
+      - /jwt/jwt.hex
+
+      # HTTP/WS RPC (L2 API)
+      - --http
+      - --http.addr
+      - 0.0.0.0
+      - --http.port
+      - "8547"
+      - --http.api
+      - eth,net,web3,rpc,admin,debug,txpool,miner
+      - --http.corsdomain
+      - "*"
+      - --ws
+      - --ws.addr
+      - 0.0.0.0
+      - --ws.port
+      - "8548"
+      - --ws.api
+      - eth,net,web3,rpc,admin,debug,txpool,miner
+      - --ws.origins
+      - "*"
+
+      # Low-latency: keep blocks in memory, reduce persistence stalls
+      - --engine.memory-block-buffer-target
+      - "0"
+      - --engine.persistence-threshold
+      - "0"
+      # RPC cache for fast eth_call / arbitrage
+      - --rpc-cache.max-blocks
+      - "10000"
+      - --rpc-cache.max-receipts
+      - "10000"
+      - --rpc-cache.max-concurrent-db-requests
+      - "2048"
+
+      # P2P (discv4 + discv5; 9222 is critical for Base peer discovery)
+      - --port
+      - "30305"
+      - --discovery.port
+      - "30305"
+      - --enable-discv5-discovery
+      - --max-outbound-peers
+      - "100"
+      - --max-inbound-peers
+      - "100"
+      - --nat
+      - any
+
+      # Metrics
+      - --metrics
+      - 0.0.0.0:9002
+
+    volumes:
+      - ./base-reth-data:/data
+      - ./jwt:/jwt:ro
+
+    ports:
+      - "127.0.0.1:8547:8547"
+      - "127.0.0.1:8548:8548"
+      - "127.0.0.1:8552:8552"
+      - "30305:30305/tcp"
+      - "30305:30305/udp"
+      - "127.0.0.1:9002:9002"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8547"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+    deploy:
+      resources:
+        reservations:
+          memory: 8G
+
+    networks:
+      - eth-network
+
+  # -----------------------------
+  # L2 Base rollup client (op-node)
+  # Connects to local L1 (reth + lighthouse) and base-reth engine.
+  # -----------------------------
+  rollup-client:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:latest
+    container_name: rollup-client
+    restart: unless-stopped
+    depends_on:
+      base-reth: { condition: service_healthy }
+
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+
+    command:
+      - --network=base-mainnet
+      - --syncmode=execution-layer
+
+      # L1: your local reth + lighthouse (minimal latency)
+      - --l1=http://reth:8545
+      - --l1.beacon=http://lighthouse:5052
+      - --l1.trustrpc=false
+      - --l1.rpckind=debug_geth
+
+      # L1 concurrency and polling (low latency)
+      - --l1.max-concurrency=200
+      - --l1.rpc-max-batch-size=50
+      - --l1.http-poll-interval=1s
+
+      # L2 engine (base-reth)
+      - --l2=http://base-reth:8552
+      - --l2.enginekind=reth
+      - --l2.jwt-secret=/jwt/jwt.hex
+      - --l2.engine-rpc-timeout=5s
+
+      # L1 confirmations before accepting L2 (4 = safe; 0 = minimum latency, higher reorg risk)
+      - --verifier.l1-confs=4
+
+      # P2P (discv5; must be reachable for peer discovery)
+      - --p2p.listen.tcp=0.0.0.0:9222
+      - --p2p.listen.udp=0.0.0.0:9222
+      - --p2p.advertise.tcp=0.0.0.0:9222
+      - --p2p.advertise.udp=0.0.0.0:9222
+      - --p2p.peers.hi=100
+
+      # RPC (sync status; primary L2 RPC is base-reth:8547)
+      - --rpc.addr=0.0.0.0
+      - --rpc.port=7545
+
+      # Metrics
+      - --metrics.enabled
+      - --metrics.addr=0.0.0.0
+      - --metrics.port=7300
+
+    volumes:
+      - ./jwt:/jwt:ro
+
+    ports:
+      - "127.0.0.1:7545:7545"
+      - "9222:9222/tcp"
+      - "9222:9222/udp"
+      - "127.0.0.1:7300:7300"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7545"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+    deploy:
+      resources:
+        reservations:
+          memory: 2G
+
+    networks:
+      - eth-network
+
+  # -----------------------------
+  # Monitoring (Prometheus + Grafana)
+  # -----------------------------
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - eth-network
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
     networks:
       - eth-network
 
@@ -188,3 +433,7 @@ services:
 networks:
   eth-network:
     driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

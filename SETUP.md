@@ -14,7 +14,9 @@ Guide for running an optimized Ethereum mainnet node with **Reth** (execution) a
 6. [CPU optimizations](#6-cpu-optimizations)
 7. [OS optimizations](#7-os-optimizations)
 8. [Port forwarding & firewall](#8-port-forwarding--firewall)
-9. [Quick reference](#9-quick-reference)
+9. [Monitoring (Prometheus & Grafana)](#9-monitoring-prometheus--grafana)
+10. [Quick reference](#10-quick-reference)
+11. [Base L2 node (op-reth + op-node)](#11-base-l2-node-op-reth--op-node)
 
 ---
 
@@ -22,9 +24,11 @@ Guide for running an optimized Ethereum mainnet node with **Reth** (execution) a
 
 | Component   | Role |
 |------------|------|
-| **Reth**   | Execution layer: chain data, execution, P2P (port 30303), HTTP/WS RPC (8545/8546), Engine API (8551). |
-| **Lighthouse** | Consensus layer: beacon chain, P2P (9000, 9001 QUIC), Beacon API (5052). Talks to Reth over Engine API (JWT on 8551). |
-| **Docker bridge** | Both containers share `eth-network`; Lighthouse reaches Reth at `http://reth:8551`. |
+| **Reth**   | Execution layer: chain data, execution, P2P (port 30303), HTTP/WS RPC (8545/8546), Engine API (8551), metrics (9001). |
+| **Lighthouse** | Consensus layer: beacon chain, P2P (9000, 9001 QUIC), Beacon API (5052), metrics (8008). Talks to Reth over Engine API (JWT on 8551). |
+| **Prometheus** | Scrapes Reth and Lighthouse metrics; UI on 9090. |
+| **Grafana** | Dashboards and alerts on Prometheus data; UI on 3000. |
+| **Docker bridge** | All containers share `eth-network`; Lighthouse reaches Reth at `http://reth:8551`; Prometheus scrapes reth:9001 and lighthouse:8008. |
 
 RPC/APIs are bound to `127.0.0.1` on the host so they are not exposed to the LAN. P2P ports (30303, 9000, 9001) are published so you can forward them on your router for more peers.
 
@@ -199,31 +203,42 @@ sudo sysctl -a 2>/dev/null | grep -E '^net\.' > ~/sysctl-net-backup.txt
 
 ### Create a tuning file
 
+Single file with node + high-bandwidth tuning. Values are based on [Linux TCP tuning for 10G](https://wiki.xdroop.com/books/linux/page/tcp-tuning-for-10g), [Red Hat TCP buffer tuning](https://docs.redhat.com/documentation/en-us/red_hat_enterprise_linux/10/html/network_troubleshooting_and_performance_tuning/tuning-tcp-connections-for-high-throughput), and BBR recommendations:
+
+- **net.core.***_max** ≥ **tcp_rmem/wmem max** so the global socket limit doesn’t cap TCP; 64MB gives headroom.
+- **tcp_rmem/wmem** max 32MB is enough for 2.5G (and 10G with moderate RTT); default 128KB avoids latency spikes from oversized defaults.
+- **tcp_mtu_probing=1** enables path MTU discovery when black holes are detected, recommended for high-BW/jumbo frames.
+- **fq** + **bbr** are recommended together for high-bandwidth links (BBR is model-based and fills the pipe faster than loss-based cubic).
+
 ```bash
 sudo tee /etc/sysctl.d/99-ethereum-node.conf << 'EOF'
-# Increase max open files system-wide
+# Max open files (many peers)
 fs.file-max = 2097152
 
-# TCP buffer sizes (tune if you have high bandwidth; values in bytes)
-# min, default, max for receive/send
-net.ipv4.tcp_rmem = 4096 87380 16777216
-net.ipv4.tcp_wmem = 4096 65536 16777216
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.core.rmem_default = 1048576
-net.core.wmem_default = 1048576
+# TCP buffers: min, default, max (bytes). Core max >= tcp max per best practice.
+net.ipv4.tcp_rmem = 4096 131072 33554432
+net.ipv4.tcp_wmem = 4096 131072 33554432
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.core.rmem_default = 2097152
+net.core.wmem_default = 2097152
 
-# Allow more connections in backlog and more pending connections
+# Connection backlogs
 net.core.somaxconn = 65535
 net.core.netdev_max_backlog = 65535
+net.ipv4.tcp_max_syn_backlog = 65535
 
 # TCP behavior
-net.ipv4.tcp_max_syn_backlog = 65535
 net.ipv4.tcp_fin_timeout = 15
 net.ipv4.tcp_tw_reuse = 1
-
-# Increase local port range for outbound connections
 net.ipv4.ip_local_port_range = 1024 65535
+
+# BBR + fq (recommended for high bandwidth; do not disable tcp_sack/tcp_timestamps)
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+
+# Path MTU discovery when black holes detected (recommended for 2.5G+ / jumbo)
+net.ipv4.tcp_mtu_probing = 1
 EOF
 ```
 
@@ -234,6 +249,29 @@ sudo sysctl --system
 ```
 
 Revert by removing the file and running `sudo sysctl --system` again, or by restoring from your backup.
+
+### Verify and optional NIC tuning
+
+Check that BBR is in use:
+
+```bash
+sysctl net.ipv4.tcp_congestion_control
+# Should show: net.ipv4.tcp_congestion_control = bbr
+```
+
+**NIC offloads (recommended):** Keep hardware offloads enabled so the NIC handles checksums and segmentation. Check with (replace `eth0` with your interface, e.g. `enp0s31f6`):
+
+```bash
+ethtool -k eth0 | grep -E 'tx-checksumming|rx-checksumming|tcp-segmentation-offload|generic-segmentation-offload'
+```
+
+If any are `off`, you can enable with (example):
+
+```bash
+sudo ethtool -K eth0 tx on rx on gso on tso on
+```
+
+To make NIC settings persistent across reboots, use your distro’s method (e.g. netplan, or a systemd service that runs the `ethtool -K` commands at boot). Optional: if you hit high CPU during huge transfers, you can try turning **off** `generic-receive-offload` (gro) and `generic-segmentation-offload` (gso) to trade some CPU for different packet handling; for most users leaving them **on** is best.
 
 ---
 
@@ -333,7 +371,56 @@ sudo ufw enable
 
 ---
 
-## 9. Quick reference
+## 9. Monitoring (Prometheus & Grafana)
+
+**Prometheus** scrapes metrics from Reth (port 9001) and Lighthouse (port 8008). **Grafana** gives you dashboards and alerts on top of that data. Both run in the same Docker stack and reach the clients over `eth-network`.
+
+### What you get
+
+- **Metrics:** Sync status, block height, peer counts, disk I/O, RPC latency, and hundreds of other time-series. Stored in Prometheus and queryable (PromQL) or visualized in Grafana.
+- **Logs:** Not stored by Prometheus. View them with Docker:
+  - All services: `docker compose logs -f`
+  - Reth only: `docker compose logs -f reth`
+  - Lighthouse only: `docker compose logs -f lighthouse`
+  Tail with `-f`; add `--tail 500` to limit lines.
+
+### Start monitoring
+
+Containers are defined in `docker-compose.yml`. Bring them up with the rest of the stack:
+
+```bash
+docker compose up -d
+```
+
+Then:
+
+| URL | Service   | Use |
+|-----|-----------|-----|
+| http://127.0.0.1:9090 | Prometheus | Query metrics (PromQL), check targets under Status → Targets |
+| http://127.0.0.1:3000 | Grafana    | Dashboards (login: `admin` / password: `admin`; change on first login) |
+
+### Grafana data source
+
+Add Prometheus as a data source in Grafana:
+
+1. Configuration → Data sources → Add data source → Prometheus.
+2. URL: `http://prometheus:9090` (use the service name; Grafana is on the same network).
+3. Save & test.
+
+You can then create dashboards or import community ones (e.g. search “Reth” or “Lighthouse” / “Ethereum” in Grafana Labs dashboard catalog).
+
+### Config and data
+
+- **Prometheus config:** `prometheus/prometheus.yml` — scrape jobs for `reth:9001` (path `/`) and `lighthouse:8008` (path `/metrics`). Reload without restart: `curl -X POST http://127.0.0.1:9090/-/reload` (if `--web.enable-lifecycle` is set).
+- **Persistent data:** Stored in Docker volumes `prometheus-data` and `grafana-data`. Back them up if you care about long-term history and dashboards.
+
+### Optional: alerts
+
+To add alerting, add an `alerting` section and `alertmanagers` to `prometheus.yml`, or configure alert rules and contact points in Grafana (Alerting → Contact points, Notification policies). That way you can get notified (e.g. by email or Slack) when sync lags or a service is down.
+
+---
+
+## 10. Quick reference
 
 ### Host ports (all 127.0.0.1 unless you change compose)
 
@@ -345,6 +432,8 @@ sudo ufw enable
 | 9001 | Reth           | Metrics          |
 | 5052 | Lighthouse     | Beacon API       |
 | 8008 | Lighthouse     | Metrics          |
+| 9090 | Prometheus     | Prometheus UI    |
+| 3000 | Grafana        | Dashboards       |
 
 ### P2P (forward on router)
 
@@ -374,4 +463,99 @@ sudo ufw enable
 6. (Optional) Add limits in `/etc/security/limits.d/` and re-login.
 7. Forward 30303, 9000, 9001 on the router to the Ubuntu host; allow them in ufw if used.
 
-After that, the node will sync; peer count should rise (especially with port forwarding and reth.toml loaded). Use `docker compose logs -f reth` and `docker compose logs -f lighthouse` to monitor.
+After that, the node will sync; peer count should rise (especially with port forwarding and reth.toml loaded). Use `docker compose logs -f reth` and `docker compose logs -f lighthouse` for logs; use Prometheus (http://127.0.0.1:9090) and Grafana (http://127.0.0.1:3000) for metrics and dashboards (see [§9 Monitoring](#9-monitoring-prometheus--grafana)).
+
+---
+
+## 11. Base L2 node (op-reth + op-node)
+
+The stack includes **base-reth** (L2 execution, op-reth) and **rollup-client** (op-node). They use your local L1 (reth + lighthouse) for minimal L1→L2 latency, which is important for arbitrage and real-time strategies.
+
+### What runs
+
+| Component       | Role |
+|-----------------|------|
+| **base-reth**   | L2 execution client (op-reth). Chain `base`, sequencer `https://mainnet-sequencer.base.org`, Engine API on 8552, HTTP/WS RPC on 8547/8548, P2P on 30305, metrics 9002. |
+| **rollup-client** | op-node: rollup consensus, drives base-reth via Engine API. Connects to L1 at `http://reth:8545` and `http://lighthouse:5052`, L2 engine at `http://base-reth:8552`. RPC/status on 7545, P2P on 9222 (discv5), metrics 7300. |
+
+**Ports (host):** L2 RPC **8547** (HTTP), **8548** (WS). Sync status: **7545**. P2P: **30305** (base-reth), **9222** (op-node). Keep 9222 open for Base peer discovery.
+
+### Restoring from Base pruned snapshot (recommended)
+
+Using the [official Base pruned Reth snapshot](https://docs.base.org/base-chain/node-operators/snapshots) greatly speeds up initial sync.
+
+**Option A – script (recommended):** From the project root (same dir as `docker-compose.yml`), run once:
+```bash
+chmod +x scripts/fetch-base-pruned-snapshot.sh
+./scripts/fetch-base-pruned-snapshot.sh
+```
+This creates `base-reth-data`, downloads the latest pruned snapshot (same as the Base docs `wget` command), extracts it, and moves contents into `base-reth-data`. Then start with `docker compose up -d`.
+
+**Option B – manual:**
+
+1. **Create data dir:**  
+   `mkdir -p base-reth-data` (must match the volume in `docker-compose.yml`).
+
+2. **Download pruned snapshot (mainnet):**  
+   ```bash
+   wget -c https://mainnet-reth-pruned-snapshots.base.org/$(curl -sS https://mainnet-reth-pruned-snapshots.base.org/latest)
+   ```
+   Or for archive:  
+   `wget -c https://mainnet-reth-archive-snapshots.base.org/$(curl -sS https://mainnet-reth-archive-snapshots.base.org/latest)`  
+
+   Ensure enough free space for the archive and extraction (see [Base snapshots](https://docs.base.org/base-chain/node-operators/snapshots)).
+
+3. **Extract:**  
+   ```bash
+   # .tar.zst
+   tar -I zstd -xvf <snapshot-filename.tar.zst>
+   # or .tar.gz
+   tar -xzvf <snapshot-filename.tar.gz>
+   ```
+
+4. **Move into `base-reth-data`:**  
+   If the archive extracts to a folder (e.g. `reth`), move its contents into `base-reth-data` so that `chaindata`, `nodes`, `segments`, etc. are directly inside `base-reth-data`:
+   ```bash
+   mv ./reth/* ./base-reth-data/
+   rmdir ./reth 2>/dev/null || true
+   ```
+
+5. **Start the stack:**  
+   `docker compose up -d`. base-reth will sync from the snapshot’s last block. Remove the downloaded archive after confirming sync.
+
+**Note:** The snapshot type (pruned vs archive) is fixed by the snapshot; you cannot switch node type after initial sync.
+
+### Low-latency / arbitrage tuning (already applied)
+
+- **L1 on same host:** rollup-client uses `http://reth:8545` and `http://lighthouse:5052` (no external L1 RPC latency).
+- **L1 Reth:** `debug` API enabled on HTTP and WS so op-node’s `--l1.rpckind=debug_geth` can use it for L1 derivation.
+- **Engine:** `--engine.memory-block-buffer-target=0` and `--engine.persistence-threshold=0` to reduce stalls.
+- **RPC cache:** `--rpc-cache.max-blocks=10000`, `--rpc-cache.max-receipts=10000`, `--rpc-cache.max-concurrent-db-requests=2048` for fast `eth_call` / state reads.
+- **base-reth WS:** `miner` namespace on WebSocket so the algo can subscribe to pending blocks and use `eth_getBlockByNumber("pending", ...)` over WS.
+- **op-node:** `--l1.http-poll-interval=1s`, `--l1.max-concurrency=200`, `--l2.engine-rpc-timeout=5s`, `--verifier.l1-confs=4` (see below for optional `0`).
+- **Memory reservations:** `deploy.resources.reservations.memory` set for reth (4G), lighthouse (4G), base-reth (8G), rollup-client (2G). With plain `docker compose` (no Swarm), use `docker compose --compatibility up` if you want these to apply; otherwise they are documentation of suggested headroom.
+- **Hardware:** NVMe SSD, 32–64 GB RAM, and `(2 × chain size) + snapshot size + 20%` free space (see [Base performance](https://docs.base.org/base-chain/node-operators/performance-tuning)).
+
+### Ultra-low latency / arb: optional tweaks
+
+- **Minimum L1 delay:** In `rollup-client` you can set `--verifier.l1-confs=0` instead of `4` so L2 follows L1 with no confirmation wait. Lowers latency and increases reorg risk; only use if your strategy can handle reorgs.
+- **Algo side:** Prefer **WebSocket** to the L2 node (`ws://127.0.0.1:8548`) with `eth_subscribe` for `newHeads` and `newPendingTransactions` instead of polling HTTP; avoids poll interval and connection setup latency.
+- **CPU pinning (host):** For lowest jitter, pin critical containers to dedicated cores (e.g. `docker update --cpuset-cpus=0-3 reth` and similar for `base-reth`, `rollup-client`). Re-apply after restarts or use a wrapper script; host-specific.
+- **Host networking (advanced):** Running base-reth and rollup-client with `network_mode: host` removes bridge latency and can shave a few ms. You’d then use `127.0.0.1` ports directly and lose service names; only consider if you’ve measured bridge overhead.
+
+### Flashblocks (sub-200ms) — enabled, optional for algo
+
+The stack uses Base’s **Flashblocks**-capable image (`ghcr.io/base/node-reth`) with `RETH_FB_WEBSOCKET_URL` and `--websocket-url` set. The node remains **backward compatible**: standard JSON-RPC and 2s blocks are unchanged. When your algo is ready for sub-200ms, use the [Flashblocks API](https://docs.base.org/base-chain/flashblocks/api-reference) (e.g. `eth_subscribe` `newFlashblocks` / `newFlashblockTransactions`, or preconf endpoints). Same pruned snapshot and data dir; no re-sync needed.
+
+### Check L2 sync
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"optimism_syncStatus","id":1}' http://127.0.0.1:7545 | jq
+```
+
+Or compare L2 block to a reference:  
+`curl -s -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://127.0.0.1:8547 | jq`
+
+### JWT
+
+base-reth and rollup-client use the same JWT as L1: `./jwt/jwt.hex` (mount `./jwt` in both services). No extra secret is required.

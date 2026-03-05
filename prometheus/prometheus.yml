@@ -1,0 +1,27 @@
+# Scrape Reth and Lighthouse metrics (same Docker network).
+# Reth serves Prometheus format at path /; Lighthouse at /metrics.
+
+scrape_configs:
+  - job_name: reth
+    metrics_path: "/"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['reth:9001']
+
+  - job_name: lighthouse
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['lighthouse:8008']
+
+  - job_name: base-reth
+    metrics_path: "/"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['base-reth:9002']
+
+  - job_name: rollup-client
+    metrics_path: "/"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['rollup-client:7300']
