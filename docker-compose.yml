@@ -3,7 +3,7 @@ services:
   # Execution Layer (Reth)
   # -----------------------------
   reth:
-    image: ghcr.io/paradigmxyz/reth:latest
+    image: ghcr.io/paradigmxyz/reth:v1.11.1
     container_name: reth
     restart: unless-stopped
 
@@ -14,6 +14,7 @@ services:
 
     command:
       - node
+      - --minimal
       - --chain
       - mainnet
       - --datadir
@@ -45,6 +46,14 @@ services:
       - --authrpc.jwtsecret
       - /jwt/jwt.hex
 
+      # RPC cache: faster L1 responses for op-node (getBlockByNumber, receipts, etc.)
+      - --rpc-cache.max-blocks
+      - "10000"
+      - --rpc-cache.max-receipts
+      - "10000"
+      - --rpc-cache.max-concurrent-db-requests
+      - "2048"
+
       # P2P
       - --port
       - "30303"
@@ -61,9 +70,9 @@ services:
 
       # Peer tuning
       - --max-outbound-peers
-      - "150"
+      - "200"
       - --max-inbound-peers
-      - "150"
+      - "200"
       - --nat
       - any
 
@@ -91,7 +100,7 @@ services:
 
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8545"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 5
 
@@ -182,7 +191,7 @@ services:
 
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:5052/eth/v1/node/health"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 5
 
@@ -278,9 +287,9 @@ services:
       - "30305"
       - --enable-discv5-discovery
       - --max-outbound-peers
-      - "100"
+      - "150"
       - --max-inbound-peers
-      - "100"
+      - "150"
       - --nat
       - any
 
@@ -302,7 +311,7 @@ services:
 
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8547"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 5
 
@@ -319,7 +328,8 @@ services:
   # Connects to local L1 (reth + lighthouse) and base-reth engine.
   # -----------------------------
   rollup-client:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:latest
+    # OP Stack rollup client (same binary for Base, OP Mainnet, etc.; chain = --network=base-mainnet)
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.16.2
     container_name: rollup-client
     restart: unless-stopped
     depends_on:
@@ -340,10 +350,10 @@ services:
       - --l1.trustrpc=false
       - --l1.rpckind=debug_geth
 
-      # L1 concurrency and polling (low latency)
+      # L1 concurrency and polling (ultra-low latency; default was 12s)
       - --l1.max-concurrency=200
       - --l1.rpc-max-batch-size=50
-      - --l1.http-poll-interval=1s
+      - --l1.http-poll-interval=500ms
 
       # L2 engine (base-reth)
       - --l2=http://base-reth:8552
@@ -352,7 +362,7 @@ services:
       - --l2.engine-rpc-timeout=5s
 
       # L1 confirmations before accepting L2 (4 = safe; 0 = minimum latency, higher reorg risk)
-      - --verifier.l1-confs=4
+      - --verifier.l1-confs=2
 
       # P2P (discv5; must be reachable for peer discovery)
       - --p2p.listen.tcp=0.0.0.0:9222
@@ -381,7 +391,7 @@ services:
 
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:7545"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 5
 
