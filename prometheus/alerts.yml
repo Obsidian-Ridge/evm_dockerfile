@@ -1,0 +1,71 @@
+# Prometheus alert rules for node stack (L1 + L2).
+# Alerts show in Prometheus UI (Alerts tab). For notifications, add Alertmanager
+# and alerting.alertmanagers in prometheus.yml, or configure Grafana Alerting.
+
+groups:
+  - name: node-up
+    interval: 30s
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.job }} ({{ $labels.instance }}) is down"
+          description: "Target has been unreachable for more than 2 minutes."
+
+  - name: op-node
+    interval: 30s
+    rules:
+      - alert: OpNodeDerivationErrors
+        expr: increase(op_node_default_derivation_errors_total[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "op-node derivation errors in last 15m"
+          description: "Rollup client reported derivation errors; may indicate L1/L2 sync or reorg issues."
+
+      - alert: OpNodePipelineResetsHigh
+        expr: increase(op_node_default_pipeline_resets_total[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "op-node pipeline resets elevated"
+          description: "More than 5 pipeline resets in the last hour; check L1 reorgs or L2 engine."
+
+      - alert: OpNodeSyncStalled
+        expr: |
+          delta(op_node_default_refs_number{layer=~"l2|L2",type=~"unsafe|Unsafe"}[10m]) < 1
+          and op_node_default_refs_number{layer=~"l2|L2",type=~"unsafe|Unsafe"} > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "op-node L2 unsafe head not advancing"
+          description: "L2 block number has not increased in 10+ minutes; node may be stuck."
+
+      - alert: OpNodeSafeLagHigh
+        expr: (op_node_default_refs_number{layer=~"l2|L2",type=~"unsafe|Unsafe"} - op_node_default_refs_number{layer=~"l2|L2",type=~"safe|Safe"}) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "op-node safe head lagging >50 blocks behind unsafe"
+          description: "Safe L2 head is more than 50 blocks behind latest; check L1 confirmations or reorgs."
+
+  # Reth metric names may vary by version; if RethPeersLow never fires, check
+  # Prometheus for reth_* metrics and update the expr (e.g. reth_network_peers).
+  - name: reth
+    interval: 30s
+    rules:
+      - alert: RethPeersLow
+        expr: reth_peers < 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reth peer count low"
+          description: "L1 Reth has fewer than 10 peers for 10+ minutes; check P2P (port 30303) and network."
