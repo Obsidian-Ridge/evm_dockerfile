@@ -81,6 +81,7 @@ services:
       - 0.0.0.0:9001
 
     volumes:
+      # Bind mount: host reth-data/ → container /data. So container /data/db = reth-data/db, /data/static_files = reth-data/static_files. Put snapshot there.
       - ./reth-data:/data
       - ./reth.toml:/data/reth.toml
       - ./jwt:/jwt
@@ -103,6 +104,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
+      start_period: 120s
 
     deploy:
       resources:
@@ -121,7 +123,7 @@ services:
     container_name: lighthouse
     restart: unless-stopped
     depends_on:
-      - reth
+      reth: { condition: service_healthy }
 
     ulimits:
       nofile:
@@ -194,12 +196,12 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
+      start_period: 90s
 
     deploy:
       resources:
         reservations:
           memory: 4G
-
     networks:
       - eth-network
 
@@ -208,7 +210,7 @@ services:
   # Pruned snapshot: see SETUP.md § Base L2 node (pruned snapshot).
   # -----------------------------
   base-reth:
-    image: ghcr.io/base/node-reth:latest
+    image: ghcr.io/base/node-reth:v0.12.9
     container_name: base-reth
     restart: unless-stopped
     depends_on:
@@ -314,12 +316,12 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
+      start_period: 180s
 
     deploy:
       resources:
         reservations:
           memory: 8G
-
     networks:
       - eth-network
 
@@ -394,12 +396,12 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
+      start_period: 60s
 
     deploy:
       resources:
         reservations:
           memory: 2G
-
     networks:
       - eth-network
 
@@ -414,8 +416,11 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=32GB
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
@@ -430,8 +435,12 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_DASHBOARDS_DEFAULT_HOME=op-node-safe-latest-reorgs
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
