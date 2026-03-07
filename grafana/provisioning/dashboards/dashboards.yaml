@@ -1,0 +1,12 @@
+# Provisioned dashboards (loaded from json/ subdir).
+# Dashboards appear under Dashboards on startup; no manual import needed.
+apiVersion: 1
+providers:
+  - name: "Node stack"
+    orgId: 1
+    folder: ""
+    type: file
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json
