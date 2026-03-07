@@ -1,0 +1,132 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "If you see data here but not in Safe vs Unsafe below, your op-node uses different label values. Use the legend to see layer/type and fix the other panels. If this is empty, refs metrics may be missing (e.g. op-node version or L2 not derived yet).",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "none" },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "op_node_default_refs_number", "legendFormat": "{{layer}} {{type}}", "refId": "A" }
+      ],
+      "title": "All L1/L2 ref block numbers (discovery – check legend for labels)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "none" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "op_node_default_refs_number{layer=~\"l2|L2\",type=~\"unsafe|Unsafe\"}", "legendFormat": "Unsafe (latest) L2 block", "refId": "A" },
+        { "expr": "op_node_default_refs_number{layer=~\"l2|L2\",type=~\"safe|Safe\"}", "legendFormat": "Safe L2 block", "refId": "B" }
+      ],
+      "title": "L2 block numbers: Safe vs Unsafe (latest)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "none", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 15 }, { "color": "red", "value": 30 }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "op_node_default_refs_number{layer=~\"l2|L2\",type=~\"unsafe|Unsafe\"} - op_node_default_refs_number{layer=~\"l2|L2\",type=~\"safe|Safe\"}", "legendFormat": "Lag (blocks)", "refId": "A" }
+      ],
+      "title": "Safe lag (unsafe - safe) in L2 blocks",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "-op_node_default_refs_latency{layer=~\"l2|L2\",type=~\"unsafe|Unsafe\"}", "legendFormat": "Unsafe latency (behind real time)", "refId": "A" },
+        { "expr": "-op_node_default_refs_latency{layer=~\"l2|L2\",type=~\"safe|Safe\"}", "legendFormat": "Safe latency (behind real time)", "refId": "B" }
+      ],
+      "title": "L2 ref latency (seconds behind now)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "increase(op_node_default_pipeline_resets_total[1h])", "legendFormat": "Pipeline resets (1h)", "refId": "A" },
+        { "expr": "increase(op_node_default_derivation_errors_total[1h])", "legendFormat": "Derivation errors (1h)", "refId": "B" }
+      ],
+      "title": "Pipeline resets & derivation errors (increase over 1h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "op_node_default_derivation_errors_total", "legendFormat": "Derivation errors", "refId": "A" },
+        { "expr": "op_node_default_sequencing_errors_total", "legendFormat": "Sequencing errors", "refId": "B" }
+      ],
+      "title": "op-node errors (total)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "op_node_default_p2p_peer_count", "legendFormat": "P2P peers", "refId": "A" }
+      ],
+      "title": "op-node P2P peer count",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["op-node", "base", "l2"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Base / op-node Safe vs Latest & Reorgs",
+  "uid": "op-node-safe-latest-reorgs",
+  "version": 1
+}
