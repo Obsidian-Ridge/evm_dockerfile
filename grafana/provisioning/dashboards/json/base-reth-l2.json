@@ -1,0 +1,173 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "reth_network_connected_peers{job=\"base-reth\"}", "legendFormat": "Connected", "refId": "A" }],
+      "title": "Connected peers",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "reth_network_tracked_peers{job=\"base-reth\"}", "legendFormat": "Tracked", "refId": "A" }],
+      "title": "Tracked peers",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "reth_network_backed_off_peers{job=\"base-reth\"}", "legendFormat": "Backed off", "refId": "A" }],
+      "title": "Backed off peers",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "expr": "reth_discv5_sessions_raw_total{job=\"base-reth\"}", "legendFormat": "discv5 sessions", "refId": "A" },
+        { "expr": "reth_discv5_kbucket_peers_raw_total{job=\"base-reth\"}", "legendFormat": "discv5 kbucket", "refId": "B" }
+      ],
+      "title": "discv5 (sessions / kbucket)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "reth_network_connected_peers{job=\"base-reth\"}", "legendFormat": "Connected", "refId": "A" },
+        { "expr": "reth_network_tracked_peers{job=\"base-reth\"}", "legendFormat": "Tracked", "refId": "B" },
+        { "expr": "reth_network_backed_off_peers{job=\"base-reth\"}", "legendFormat": "Backed off", "refId": "C" }
+      ],
+      "title": "Network peers over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "reth_discv5_sessions_raw_total{job=\"base-reth\"}", "legendFormat": "discv5 sessions", "refId": "A" },
+        { "expr": "reth_discv5_kbucket_peers_raw_total{job=\"base-reth\"}", "legendFormat": "discv5 kbucket peers", "refId": "B" }
+      ],
+      "title": "Discovery (discv5)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (method) (rate(reth_rpc_server_calls_started_total{job=\"base-reth\"}[5m]))", "legendFormat": "{{method}}", "refId": "A" }
+      ],
+      "title": "RPC calls started (rate by method)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (method) (rate(reth_rpc_server_calls_failed_total{job=\"base-reth\"}[5m]))", "legendFormat": "{{method}}", "refId": "A" }
+      ],
+      "title": "RPC calls failed (rate by method)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "reth_rpc_server_calls_time_seconds{job=\"base-reth\",quantile=\"0.99\"}", "legendFormat": "p99 {{method}}", "refId": "A" },
+        { "expr": "reth_rpc_server_calls_time_seconds{job=\"base-reth\",quantile=\"0.5\"}", "legendFormat": "p50 {{method}}", "refId": "B" }
+      ],
+      "title": "RPC latency (p50 / p99 by method)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "increase(reth_network_too_many_peers{job=\"base-reth\"}[1h])", "legendFormat": "Too many peers", "refId": "A" },
+        { "expr": "increase(reth_network_egress_peer_channel_full{job=\"base-reth\"}[1h])", "legendFormat": "Egress channel full", "refId": "B" },
+        { "expr": "increase(reth_network_total_outgoing_peer_messages_dropped{job=\"base-reth\"}[1h])", "legendFormat": "Outgoing dropped", "refId": "C" }
+      ],
+      "title": "Network disconnect / drop counters (1h)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["base-reth", "l2", "execution"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Base-Reth (L2)",
+  "uid": "base-reth-l2",
+  "version": 1
+}
