@@ -56,13 +56,12 @@ groups:
           summary: "op-node safe head lagging >50 blocks behind unsafe"
           description: "Safe L2 head is more than 50 blocks behind latest; check L1 confirmations or reorgs."
 
-  # Reth metric names may vary by version; if RethPeersLow never fires, check
-  # Prometheus for reth_* metrics and update the expr (e.g. reth_network_peers).
+  # Reth exposes reth_network_connected_peers (gauge).
   - name: reth
     interval: 30s
     rules:
       - alert: RethPeersLow
-        expr: reth_peers < 10
+        expr: reth_network_connected_peers{job="reth"} < 10
         for: 10m
         labels:
           severity: warning
