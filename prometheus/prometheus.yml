@@ -11,21 +11,26 @@ rule_files:
 
 scrape_configs:
   - job_name: reth
+    scrape_interval: 5s
     metrics_path: "/"
     static_configs:
       - targets: ['reth:9001']
 
   - job_name: lighthouse
+    scrape_interval: 5s
     metrics_path: "/metrics"
     static_configs:
       - targets: ['lighthouse:8008']
 
   - job_name: base-reth
+    scrape_interval: 5s
     metrics_path: "/"
     static_configs:
       - targets: ['base-reth:9002']
 
+  # 5s for near real-time L2/op-node metrics (safe vs unsafe, latency, reorgs)
   - job_name: rollup-client
+    scrape_interval: 5s
     metrics_path: "/"
     static_configs:
       - targets: ['rollup-client:7300']
