@@ -228,9 +228,9 @@ services:
       - 8.8.8.8
       - 1.1.1.1
 
-    environment:
+    #environment:
       # Flashblocks: optional; node stays backward-compatible (2s blocks). Use when algo supports it.
-      - RETH_FB_WEBSOCKET_URL=wss://mainnet.flashblocks.base.org/ws
+      #- RETH_FB_WEBSOCKET_URL=wss://mainnet.flashblocks.base.org/ws
 
     ulimits:
       nofile:
@@ -250,7 +250,7 @@ services:
       - --rollup.disable-tx-pool-gossip
 
       # Flashblocks (sub-200ms); RPC remains backward-compatible until you use new APIs
-      - --websocket-url=wss://mainnet.flashblocks.base.org/ws
+      #- --websocket-url=wss://mainnet.flashblocks.base.org/ws
 
       # Engine API for op-node (JWT)
       - --authrpc.addr
@@ -294,11 +294,14 @@ services:
       - "2048"
 
       # P2P (discv4 + discv5). Bootnodes from Base mainnet (port 30301) for faster discovery.
+      # discv5 uses a separate port (default 9200); L1 reth uses 9200, so use 9201 for base-reth and expose it.
       - --port
       - "30305"
       - --discovery.port
       - "30305"
       - --enable-discv5-discovery
+      - --discovery.v5.port
+      - "9201"
       - --bootnodes
       - "enode://87a32fd13bd596b2ffca97020e31aef4ddcc1bbd4b95bb633d16c1329f654f34049ed240a36b449fda5e5225d70fe40bc667f53c304b71f8e68fc9d448690b51@3.231.138.188:30301,enode://ca21ea8f176adb2e229ce2d700830c844af0ea941a1d8152a9513b966fe525e809c3a6c73a2c18a12b74ed6ec4380edf91662778fe0b79f6a591236e49e176f9@184.72.129.189:30301,enode://acf4507a211ba7c1e52cdf4eef62cdc3c32e7c9c47998954f7ba024026f9a6b2150cd3f0b734d9c78e507ab70d59ba61dfe5c45e1078c7ad0775fb251d7735a2@3.220.145.177:30301,enode://8a5a5006159bf079d06a04e5eceab2a1ce6e0f721875b2a9c96905336219dbe14203d38f70f3754686a6324f786c2f9852d8c0dd3adac2d080f4db35efc678c5@3.231.11.52:30301,enode://cdadbe835308ad3557f9a1de8db411da1a260a98f8421d62da90e71da66e55e98aaa8e90aa7ce01b408a54e4bd2253d701218081ded3dbe5efbbc7b41d7cef79@54.198.153.150:30301"
       - --peers-file
@@ -324,6 +327,7 @@ services:
       - "127.0.0.1:8552:8552"
       - "30305:30305/tcp"
       - "30305:30305/udp"
+      - "9201:9201/udp"
       - "127.0.0.1:9002:9002"
 
     # Image may not have curl; check RPC port 8547 is open (same approach as reth/lighthouse)
@@ -365,7 +369,8 @@ services:
       - --syncmode=execution-layer
 
       # L1: your local reth + lighthouse (minimal latency)
-      - --l1=http://reth:8545
+      #- --l1=http://reth:8545
+      - --l1=ws://reth:8546
       - --l1.beacon=http://lighthouse:5052
       - --l1.trustrpc=false
       - --l1.rpckind=debug_geth
@@ -373,7 +378,7 @@ services:
       # L1 concurrency and polling (ultra-low latency; default was 12s)
       - --l1.max-concurrency=200
       - --l1.rpc-max-batch-size=50
-      - --l1.http-poll-interval=500ms
+      #- --l1.http-poll-interval=500ms
 
       # L2 engine (base-reth)
       - --l2=http://base-reth:8552
