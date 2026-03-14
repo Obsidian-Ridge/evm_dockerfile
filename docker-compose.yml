@@ -282,9 +282,9 @@ services:
 
       # Low-latency: keep blocks in memory, reduce persistence stalls
       - --engine.memory-block-buffer-target
-      - "0"
+      - "2"
       - --engine.persistence-threshold
-      - "0"
+      - "2"
       # RPC cache for fast eth_call / arbitrage
       - --rpc-cache.max-blocks
       - "10000"
@@ -359,6 +359,10 @@ services:
     depends_on:
       base-reth: { condition: service_healthy }
 
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
     ulimits:
       nofile:
         soft: 1048576
@@ -372,11 +376,11 @@ services:
       #- --l1=http://reth:8545
       - --l1=ws://reth:8546
       - --l1.beacon=http://lighthouse:5052
-      - --l1.trustrpc=false
+      - --l1.trustrpc=true
       - --l1.rpckind=debug_geth
 
       # L1 concurrency and polling (ultra-low latency; default was 12s)
-      - --l1.max-concurrency=200
+      - --l1.max-concurrency=100
       - --l1.rpc-max-batch-size=50
       #- --l1.http-poll-interval=500ms
 
@@ -387,7 +391,7 @@ services:
       - --l2.engine-rpc-timeout=5s
 
       # L1 confirmations before accepting L2 (4 = safe; 0 = minimum latency, higher reorg risk)
-      - --verifier.l1-confs=0
+      - --verifier.l1-confs=1
 
       # P2P (discv5; must be reachable for peer discovery). v1.16.x expects port only; bind IP is --p2p.listen.ip (default 0.0.0.0)
       - --p2p.listen.tcp=9222
