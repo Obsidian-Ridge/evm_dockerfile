@@ -292,7 +292,10 @@ services:
       - "10000"
       - --rpc-cache.max-concurrent-db-requests
       - "2048"
-
+      
+      # IPC
+      - --ipcpath
+      - /data/base-reth.ipc
       # P2P (discv4 + discv5). Bootnodes from Base mainnet (port 30301) for faster discovery.
       # discv5 uses a separate port (default 9200); L1 reth uses 9200, so use 9201 for base-reth and expose it.
       - --port
