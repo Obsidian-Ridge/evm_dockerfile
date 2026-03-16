@@ -74,7 +74,7 @@ services:
       - --max-inbound-peers
       - "200"
       - --nat
-      - extip:71.175.190.232
+      - extip:71.175.190.122
 
       # Metrics 
       - --metrics
@@ -314,7 +314,7 @@ services:
       - --max-inbound-peers
       - "150"
       - --nat
-      - extip:71.175.190.232
+      - extip:71.175.190.122
 
       # Metrics
       - --metrics
@@ -399,7 +399,7 @@ services:
       # P2P (discv5; must be reachable for peer discovery). v1.16.x expects port only; bind IP is --p2p.listen.ip (default 0.0.0.0)
       - --p2p.listen.tcp=9222
       - --p2p.listen.udp=9222
-      - --p2p.advertise.ip=71.175.190.232
+      - --p2p.advertise.ip=71.175.190.122
       - --p2p.advertise.tcp=9222
       - --p2p.advertise.udp=9222
       - --p2p.peers.hi=100
