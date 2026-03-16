@@ -3,7 +3,7 @@ services:
   # Execution Layer (Reth) — full/pruned (non-archive) L1 node
   # -----------------------------
   reth:
-    image: ghcr.io/paradigmxyz/reth:v1.11.1
+    image: ghcr.io/paradigmxyz/reth:v1.11.3
     container_name: reth
     restart: unless-stopped
 
