@@ -249,6 +249,10 @@ services:
       - https://mainnet-sequencer.base.org
       - --rollup.disable-tx-pool-gossip
 
+      # IPC
+      #- --ipcpath
+      #- /data/base-reth.ipc
+
       # Flashblocks (sub-200ms); RPC remains backward-compatible until you use new APIs
       #- --websocket-url=wss://mainnet.flashblocks.base.org/ws
 
@@ -280,6 +284,11 @@ services:
       - --ws.origins
       - "*"
 
+      # Raising eth_call gas cap for optimizer simulations
+      - --rpc-gascap
+      - "300000000"
+
+
       # Low-latency: keep blocks in memory, reduce persistence stalls
       - --engine.memory-block-buffer-target
       - "2"
@@ -292,10 +301,7 @@ services:
       - "10000"
       - --rpc-cache.max-concurrent-db-requests
       - "2048"
-      
-      # IPC
-      - --ipcpath
-      - /data/base-reth.ipc
+
       # P2P (discv4 + discv5). Bootnodes from Base mainnet (port 30301) for faster discovery.
       # discv5 uses a separate port (default 9200); L1 reth uses 9200, so use 9201 for base-reth and expose it.
       - --port
@@ -394,7 +400,7 @@ services:
       - --l2.engine-rpc-timeout=5s
 
       # L1 confirmations before accepting L2 (4 = safe; 0 = minimum latency, higher reorg risk)
-      - --verifier.l1-confs=1
+      - --verifier.l1-confs=0
 
       # P2P (discv5; must be reachable for peer discovery). v1.16.x expects port only; bind IP is --p2p.listen.ip (default 0.0.0.0)
       - --p2p.listen.tcp=9222
@@ -441,7 +447,7 @@ services:
   # Monitoring (Prometheus + Grafana)
   # -----------------------------
   prometheus:
-    image: prom/prometheus:v2.47.0
+    image: prom/prometheus:v3.10.0
     container_name: prometheus
     restart: unless-stopped
     command:
@@ -461,7 +467,7 @@ services:
       - eth-network
 
   grafana:
-    image: grafana/grafana:10.2.0
+    image: grafana/grafana:12.4.1
     container_name: grafana
     restart: unless-stopped
     environment:
