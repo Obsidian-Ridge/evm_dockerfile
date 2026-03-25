@@ -121,7 +121,7 @@ services:
   # Consensus Layer (Lighthouse)
   # -----------------------------
   lighthouse:
-    image: sigp/lighthouse:latest
+    image: sigp/lighthouse:v8.1.2
     container_name: lighthouse
     restart: unless-stopped
     depends_on:
