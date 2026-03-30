@@ -1,0 +1,112 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "mappings": [{ "options": { "0": { "color": "green", "text": "OK" } }, "type": "value" }, { "options": { "1": { "color": "red", "text": "FIRING" } }, "type": "value" }], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [{ "expr": "ALERTS{alertstate=\"firing\"}", "legendFormat": "{{alertname}} ({{$labels.job}})", "refId": "A" }],
+      "title": "Firing alerts",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "increase(op_node_default_derivation_errors_total{job=\"rollup-client\"}[1h])", "legendFormat": "Derivation errors (1h)", "refId": "A" },
+        { "expr": "increase(op_node_default_derivation_errors_total{job=\"rollup-client\"}[24h])", "legendFormat": "Derivation errors (24h)", "refId": "B" }
+      ],
+      "title": "op-node derivation errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "increase(op_node_default_pipeline_resets_total{job=\"rollup-client\"}[1h])", "legendFormat": "Pipeline resets (1h)", "refId": "A" },
+        { "expr": "increase(op_node_default_pipeline_resets_total{job=\"rollup-client\"}[24h])", "legendFormat": "Pipeline resets (24h)", "refId": "B" }
+      ],
+      "title": "op-node pipeline resets",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "op_node_default_derivation_errors_total{job=\"rollup-client\"}", "legendFormat": "Derivation (total)", "refId": "A" },
+        { "expr": "op_node_default_sequencing_errors_total{job=\"rollup-client\"}", "legendFormat": "Sequencing (total)", "refId": "B" },
+        { "expr": "increase(op_node_default_publishing_errors_total{job=\"rollup-client\"}[1h])", "legendFormat": "Publishing errors (1h)", "refId": "C" }
+      ],
+      "title": "op-node error counters",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps", "min": 0 },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (job, method) (rate(reth_rpc_server_calls_failed_total[5m]))", "legendFormat": "{{job}} {{method}}", "refId": "A" }
+      ],
+      "title": "RPC failed (rate) – reth & base-reth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "mappings": [{ "options": { "0": { "color": "red", "text": "DOWN" } }, "type": "value" }, { "options": { "1": { "color": "green", "text": "UP" } }, "type": "value" }], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 21 },
+      "id": 6,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [{ "expr": "up{job=~\"reth|lighthouse|base-reth|rollup-client\"}", "legendFormat": "{{job}} {{instance}}", "refId": "A" }],
+      "title": "Scrape health (1=UP)",
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["errors", "alerts", "op-node"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Errors & Alerts",
+  "uid": "errors-and-alerts",
+  "version": 1
+}

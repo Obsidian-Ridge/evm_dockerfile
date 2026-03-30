@@ -64,12 +64,12 @@ services:
       - --metrics-port=5053
       - --checkpoint-sync-url=https://mainnet-checkpoint-sync.attestant.io
       - --disable-packet-filter
-
+      - --supernode
   # ----------------------------------
   # L2 EXECUTION LAYER (Base Reth)
   # ----------------------------------
   base-reth:
-    image: ghcr.io/base/node-reth:latest
+    image: ghcr.io/base/node-reth:v0.14.2
     container_name: base-reth
     restart: unless-stopped
     network_mode: "host"
@@ -90,19 +90,16 @@ services:
       - --websocket-url=wss://mainnet.flashblocks.base.org/ws
       # --- ENGINE LATENCY TUNING ---
       # Buffers 12 blocks in RAM to prevent SSD I/O bottlenecks during heavy load
-      - --engine.memory-block-buffer-target=0
-      - --engine.persistence-threshold=0
+      - --engine.memory-block-buffer-target=12
+      - --engine.persistence-threshold=12
 
       # --- RPC CACHE TUNING ---
       # Serves API requests from RAM
       - --rpc-cache.max-blocks=10000
       - --rpc-cache.max-receipts=10000
       - --rpc-cache.max-concurrent-db-requests=2048
-
-      # IPC
-      - --ipcpath
-      - /data/base-reth.ipc
-
+      # Almost no gas limit
+      - --rpc.gascap=1000000000
       # Database
       - --db.max-size=8TB
 
@@ -136,7 +133,7 @@ services:
   # L2 ROLLUP CLIENT (OP Node)
   # ----------------------------------
   rollup-client:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:latest
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.16.2
     container_name: base-rollup
     restart: unless-stopped
     network_mode: "host"
@@ -150,10 +147,10 @@ services:
 
       # L1 CONNECTION (QuickNode)
       # Once your Local L1 (reth above) is synced, switch these to http://127.0.0.1:8545
-      - --l1=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
-      - --l1.beacon=https://empty-intensive-borough.quiknode.pro/3fb0280d24123ab6e2b1cae33478a4c549252972/
+      - --l1=http://127.0.0.1:8545
+      - --l1.beacon=http://127.0.0.1:5052
       - --l1.trustrpc=true
-      - --l1.rpckind=quicknode
+      - --l1.rpckind=debug_geth
 
       # L1 Speed Tuning
       - --l1.max-concurrency=200
@@ -172,9 +169,48 @@ services:
 
       - --rpc.addr=0.0.0.0
       - --rpc.port=8549
+
+      # Metrics
+      - --metrics.enabled
+      - --metrics.addr=0.0.0.0
+      - --metrics.port=7300
+      - --pprof.enabled
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
     depends_on:
       - base-reth
+  # ----------------------------------
+  # MONITORING STACK
+  # ----------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-evm
+    restart: unless-stopped
+    network_mode: "host" # Host mode allows it to see all other host-mode nodes easily
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+      - --web.listen-address=0.0.0.0:9090
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-evm
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      - GF_SERVER_HTTP_PORT=3001
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  prometheus_data:
+  grafana_data:

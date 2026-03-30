@@ -17,6 +17,7 @@ Guide for running an optimized Ethereum mainnet node with **Reth** (execution) a
 9. [Monitoring (Prometheus & Grafana)](#9-monitoring-prometheus--grafana)
 10. [Quick reference](#10-quick-reference)
 11. [Base L2 node (op-reth + op-node)](#11-base-l2-node-op-reth--op-node)
+12. [Production hardening (HA, latency, metrics)](#12-production-hardening-ha-latency-metrics)
 
 ---
 
@@ -401,13 +402,17 @@ Then:
 
 ### Grafana data source
 
-Add Prometheus as a data source in Grafana:
-
-1. Configuration → Data sources → Add data source → Prometheus.
-2. URL: `http://prometheus:9090` (use the service name; Grafana is on the same network).
-3. Save & test.
+Prometheus is **provisioned** as the default data source; the op-node dashboard is provisioned and set as default home. No manual add needed.
 
 You can then create dashboards or import community ones (e.g. search “Reth” or “Lighthouse” / “Ethereum” in Grafana Labs dashboard catalog).
+
+### Safe vs latest, reorgs (op-node / Base)
+
+Prometheus scrapes **all four** node jobs (reth, lighthouse, base-reth, rollup-client) every 10s; the provisioned op-node dashboard shows **L2 safe vs unsafe block numbers**, **lag in blocks**, **latency behind real time**, and **reorg-related events** (pipeline resets, derivation errors). To inspect metrics by hand (all from the `rollup-client` job):
+   - **Safe vs latest block number:** `op_node_default_refs_number{layer="l2",type="unsafe"}` (latest) and `op_node_default_refs_number{layer="l2",type="safe"}` (safe). Difference = lag in L2 blocks (~2s per block).
+   - **Lag in blocks:** `op_node_default_refs_number{layer="l2",type="unsafe"} - op_node_default_refs_number{layer="l2",type="safe"}`.
+   - **Latency behind real time:** `op_node_default_refs_latency{layer="l2",type="unsafe"}` and `...type="safe"` (negative = seconds behind now).
+   - **Reorgs / pipeline issues:** `op_node_default_pipeline_resets_total`, `op_node_default_derivation_errors_total`. If `op_node_default_refs_number` goes **backwards**, the node is reorging.
 
 ### Config and data
 
@@ -426,12 +431,18 @@ To add alerting, add an `alerting` section and `alertmanagers` to `prometheus.ym
 
 | Port | Service        | Use              |
 |------|----------------|------------------|
-| 8545 | Reth           | HTTP RPC         |
-| 8546 | Reth           | WebSocket RPC    |
+| 8545 | Reth           | HTTP RPC (L1)    |
+| 8546 | Reth           | WebSocket RPC (L1) |
 | 8551 | Reth           | Engine API (Lighthouse) |
 | 9001 | Reth           | Metrics          |
 | 5052 | Lighthouse     | Beacon API       |
 | 8008 | Lighthouse     | Metrics          |
+| 8547 | base-reth      | HTTP RPC (L2)    |
+| 8548 | base-reth      | WebSocket RPC (L2; use for HFT subscriptions) |
+| 8552 | base-reth      | Engine API (op-node) |
+| 9002 | base-reth      | Metrics          |
+| 7545 | rollup-client  | op-node RPC (sync status) |
+| 7300 | rollup-client  | Metrics          |
 | 9090 | Prometheus     | Prometheus UI    |
 | 3000 | Grafana        | Dashboards       |
 
@@ -469,7 +480,9 @@ After that, the node will sync; peer count should rise (especially with port for
 
 ## 11. Base L2 node (op-reth + op-node)
 
-The stack includes **base-reth** (L2 execution, op-reth) and **rollup-client** (op-node). They use your local L1 (reth + lighthouse) for minimal L1→L2 latency, which is important for arbitrage and real-time strategies.
+**Node type:** This setup is a **pruned** (full, non-archive) stack: L1 Reth runs with `--minimal` (pruned state); L2 base-reth is restored from the **official Base pruned snapshot**, so you get a pruned L2 node. No archive mode—optimal for arbitrage and HFT (lower disk and faster responses).
+
+The stack includes **base-reth** (L2 execution, op-reth) and **rollup-client** (op-node). They use your local L1 (reth + lighthouse) for minimal L1→L2 latency.
 
 ### What runs
 
@@ -478,31 +491,28 @@ The stack includes **base-reth** (L2 execution, op-reth) and **rollup-client** (
 | **base-reth**   | L2 execution client (op-reth). Chain `base`, sequencer `https://mainnet-sequencer.base.org`, Engine API on 8552, HTTP/WS RPC on 8547/8548, P2P on 30305, metrics 9002. |
 | **rollup-client** | op-node: rollup consensus, drives base-reth via Engine API. Connects to L1 at `http://reth:8545` and `http://lighthouse:5052`, L2 engine at `http://base-reth:8552`. RPC/status on 7545, P2P on 9222 (discv5), metrics 7300. |
 
-**Ports (host):** L2 RPC **8547** (HTTP), **8548** (WS). Sync status: **7545**. P2P: **30305** (base-reth), **9222** (op-node). Keep 9222 open for Base peer discovery.
+**Ports (host):** L2 RPC **8547** (HTTP), **8548** (WS). Sync status: **7545**. P2P: **30305** TCP/UDP (base-reth discv4 + peering), **9201** UDP (base-reth discv5 discovery), **9222** (op-node). Keep 30305, 9201, and 9222 open on the host/firewall for Base peer discovery.
 
 ### Restoring from Base pruned snapshot (recommended)
 
 Using the [official Base pruned Reth snapshot](https://docs.base.org/base-chain/node-operators/snapshots) greatly speeds up initial sync.
 
-**Option A – script (recommended):** From the project root (same dir as `docker-compose.yml`), run once:
+**Option A – extract script (you already have the snapshot file):** From the project root:
 ```bash
-chmod +x scripts/fetch-base-pruned-snapshot.sh
-./scripts/fetch-base-pruned-snapshot.sh
+chmod +x scripts/extract-base-pruned-snapshot.sh
+./scripts/extract-base-pruned-snapshot.sh /path/to/your/snapshot.tar.zst
 ```
-This creates `base-reth-data`, downloads the latest pruned snapshot (same as the Base docs `wget` command), extracts it, and moves contents into `base-reth-data`. Then start with `docker compose up -d`.
+This creates `base-reth-data`, extracts the archive, and moves contents so `chaindata`, `nodes`, `segments` are directly inside `base-reth-data`. Then start L2 and monitoring (see “Quick start after L1 sync” below).
 
 **Option B – manual:**
 
 1. **Create data dir:**  
-   `mkdir -p base-reth-data` (must match the volume in `docker-compose.yml`).
+   `mkdir -p base-reth-data`
 
-2. **Download pruned snapshot (mainnet):**  
+2. **Download pruned snapshot (mainnet), if needed:**  
    ```bash
    wget -c https://mainnet-reth-pruned-snapshots.base.org/$(curl -sS https://mainnet-reth-pruned-snapshots.base.org/latest)
    ```
-   Or for archive:  
-   `wget -c https://mainnet-reth-archive-snapshots.base.org/$(curl -sS https://mainnet-reth-archive-snapshots.base.org/latest)`  
-
    Ensure enough free space for the archive and extraction (see [Base snapshots](https://docs.base.org/base-chain/node-operators/snapshots)).
 
 3. **Extract:**  
@@ -523,16 +533,30 @@ This creates `base-reth-data`, downloads the latest pruned snapshot (same as the
 5. **Start the stack:**  
    `docker compose up -d`. base-reth will sync from the snapshot’s last block. Remove the downloaded archive after confirming sync.
 
+**Windows:** For `.tar.zst` use Git Bash or WSL and the extract script; for `.tar.gz`, PowerShell: `tar -xzvf snapshot.tar.gz`, then move contents into `base-reth-data`.
+
 **Note:** The snapshot type (pruned vs archive) is fixed by the snapshot; you cannot switch node type after initial sync.
+
+### Quick start after L1 sync (reth + lighthouse synced, pruned snapshot ready)
+
+1. **Extract** the pruned snapshot into `base-reth-data` (script or manual steps above).
+2. **Start everything** (L2 + full monitoring): `docker compose up -d`  
+   Or only L2: `docker compose up -d base-reth rollup-client`
+3. **Verify:**  
+   `curl -s -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"optimism_syncStatus","id":1}' http://127.0.0.1:7545 | jq`
+
+### Validation: ultra-low latency / arb
+
+The compose is tuned for **real-time blocks and arbitrage**: local L1 (no external RPC latency), aggressive L1 polling (500ms), L1 + L2 RPC caches, engine buffers at 0, Base node-reth with Flashblocks, WS with `miner` for pending blocks, and optional `--verifier.l1-confs=0` for minimum L1→L2 delay. For sub-100ms RPC and minimal jitter, run the stack on NVMe with 32–64 GB RAM and have the algo use **WebSocket** (`ws://127.0.0.1:8548`) with `eth_subscribe` rather than HTTP polling.
 
 ### Low-latency / arbitrage tuning (already applied)
 
 - **L1 on same host:** rollup-client uses `http://reth:8545` and `http://lighthouse:5052` (no external L1 RPC latency).
-- **L1 Reth:** `debug` API enabled on HTTP and WS so op-node’s `--l1.rpckind=debug_geth` can use it for L1 derivation.
-- **Engine:** `--engine.memory-block-buffer-target=0` and `--engine.persistence-threshold=0` to reduce stalls.
-- **RPC cache:** `--rpc-cache.max-blocks=10000`, `--rpc-cache.max-receipts=10000`, `--rpc-cache.max-concurrent-db-requests=2048` for fast `eth_call` / state reads.
+- **L1 Reth:** `debug` API enabled on HTTP and WS so op-node’s `--l1.rpckind=debug_geth` can use it for L1 derivation; **RPC cache** (max-blocks, max-receipts, max-concurrent-db-requests) for fast L1 responses to op-node.
+- **Engine (base-reth):** `--engine.memory-block-buffer-target=0` and `--engine.persistence-threshold=0` to reduce stalls.
+- **RPC cache (L1 + L2):** `--rpc-cache.max-blocks=10000`, `--rpc-cache.max-receipts=10000`, `--rpc-cache.max-concurrent-db-requests=2048` for fast `eth_call` / state reads and L1 derivation.
 - **base-reth WS:** `miner` namespace on WebSocket so the algo can subscribe to pending blocks and use `eth_getBlockByNumber("pending", ...)` over WS.
-- **op-node:** `--l1.http-poll-interval=1s`, `--l1.max-concurrency=200`, `--l2.engine-rpc-timeout=5s`, `--verifier.l1-confs=4` (see below for optional `0`).
+- **op-node:** `--l1.http-poll-interval=500ms` (default 12s), `--l1.max-concurrency=200`, `--l2.engine-rpc-timeout=5s`, `--verifier.l1-confs=2` (see below for optional `0` for minimum latency).
 - **Memory reservations:** `deploy.resources.reservations.memory` set for reth (4G), lighthouse (4G), base-reth (8G), rollup-client (2G). With plain `docker compose` (no Swarm), use `docker compose --compatibility up` if you want these to apply; otherwise they are documentation of suggested headroom.
 - **Hardware:** NVMe SSD, 32–64 GB RAM, and `(2 × chain size) + snapshot size + 20%` free space (see [Base performance](https://docs.base.org/base-chain/node-operators/performance-tuning)).
 
@@ -559,3 +583,58 @@ Or compare L2 block to a reference:
 ### JWT
 
 base-reth and rollup-client use the same JWT as L1: `./jwt/jwt.hex` (mount `./jwt` in both services). No extra secret is required.
+
+---
+
+## 12. Production hardening (HA, latency, metrics)
+
+This section summarizes what the stack does to stay up, recover automatically, run with minimal latency for arbitrage, and collect full metrics. All of this is already applied in `docker-compose.yml`, Prometheus, and Grafana provisioning.
+
+### High availability and recovery
+
+- **Restart policy:** Every service uses `restart: unless-stopped`. If a container exits (crash, OOM, bug), Docker restarts it. Stopping with `docker compose stop` is respected.
+- **Start order and health:**  
+  - **L1:** Reth must be **healthy** (HTTP 8545 responding) before Lighthouse starts (`depends_on: reth: condition: service_healthy`).  
+  - **L2:** base-reth waits for both reth and lighthouse healthy; rollup-client (op-node) waits for base-reth healthy. So the stack comes up in order and doesn’t hit “connection refused” during boot.
+- **Healthcheck start period:** Each service has a `start_period` so slow initial sync or snapshot restore doesn’t mark it unhealthy:
+  - reth: 120s  
+  - lighthouse: 90s  
+  - base-reth: 180s (snapshot restore can be long)  
+  - rollup-client: 60s  
+  During this period, failed checks don’t count toward “unhealthy”; after that, the usual `interval` / `timeout` / `retries` apply.
+- **Memory limits:** Reservations + limits are set so one container can’t starve the host: reth 8G, lighthouse 8G, base-reth 16G, rollup-client 4G. Adjust for your RAM; with 32–64 GB these leave headroom for OS and other tools.
+
+### Ultra-low latency (arbitrage / real-time)
+
+- **Local L1:** op-node uses `http://reth:8545` and `http://lighthouse:5052` on the same host — no external RPC latency.
+- **L1 polling:** `--l1.http-poll-interval=500ms` (op-node default is 12s). With `--l1.max-concurrency=200` and `--l1.rpc-max-batch-size=50`, L1 data is fetched aggressively.
+- **L2 engine:** `--l2.engine-rpc-timeout=5s`; base-reth has `--engine.memory-block-buffer-target=0` and `--engine.persistence-threshold=0` to avoid extra stalls.
+- **RPC caches:** L1 Reth and L2 base-reth both use large RPC caches (max-blocks, max-receipts, max-concurrent-db-requests) for fast `eth_call` and L1 derivation.
+- **L1 confirmations:** `--verifier.l1-confs=2` balances latency vs reorg risk. For minimum latency (and higher reorg/revert risk) you can set `0`; see [L1_CONFS_ARBITRAGE_RESEARCH.md](L1_CONFS_ARBITRAGE_RESEARCH.md).
+- **Algo side:** Use **WebSocket** to L2 (`ws://127.0.0.1:8548`) with `eth_subscribe` for `newHeads` and `newPendingTransactions` instead of HTTP polling.
+
+### Metrics and observability
+
+- **Prometheus:**  
+  - Scrape **every 10s** (global `scrape_interval`) for reth, lighthouse, base-reth, rollup-client — near real-time for dashboards.  
+  - **Retention:** 15 days and 32 GB cap (`--storage.tsdb.retention.time=15d`, `--storage.tsdb.retention.size=32GB`).  
+  - **Alert rules:** `prometheus/alerts.yml` defines alerts for: instance down, op-node derivation errors, pipeline resets, L2 sync stalled, safe-head lag, and (if exposed) Reth peer count. Alerts show in Prometheus → Alerts. For notifications (email, Slack), add [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) and configure `alerting` in `prometheus.yml`, or use Grafana Alerting with contact points.
+- **Grafana:**  
+  - **Provisioned datasource:** Prometheus is auto-configured at `http://prometheus:9090` (see `grafana/provisioning/datasources/datasources.yaml`). No manual “Add data source” needed.  
+  - **Provisioned dashboard:** The op-node “Safe vs Latest & Reorgs” dashboard is loaded from `grafana/provisioning/dashboards/json/op-node-dashboard.json`. It appears under Dashboards on first login; default home is set to this dashboard.  
+  - Use it to watch L2 safe vs unsafe block numbers, lag, latency behind real time, pipeline resets, derivation errors, and P2P peer count.
+
+### Image pins
+
+- **Reth (L1):** `ghcr.io/paradigmxyz/reth:v1.11.1`  
+- **op-node:** `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.16.2`  
+- **base-reth:** `ghcr.io/base/node-reth:v0.12.9` (pinned for reproducibility; update when you want a newer Base node)  
+- **Lighthouse:** `sigp/lighthouse:latest` (consider pinning to a version tag for production)  
+- **Prometheus / Grafana:** Version tags in compose.
+
+### Optional next steps
+
+- **Alertmanager:** Add a container and `alerting.alertmanagers` in `prometheus.yml` to send alerts to Slack, PagerDuty, or email.  
+- **Grafana Alerting:** Configure contact points and notification policies in Grafana so panels can trigger alerts.  
+- **Host tuning:** Apply [§5 Network](#5-network-optimizations-linux), [§6 CPU](#6-cpu-optimizations), and [§7 OS](#7-os-optimizations) on the host (sysctl, CPU governor, file limits) for maximum throughput and stability.  
+- **CPU pinning:** For lowest jitter, pin critical containers to dedicated cores (`docker update --cpuset-cpus=...`); re-apply after restarts or use a wrapper script.
